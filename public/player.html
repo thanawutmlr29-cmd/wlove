@@ -1,0 +1,3554 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>Werewolf — ผู้เล่น</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Charm:wght@400;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+
+:root{
+    --bg:#0a0d14;
+    --panel:#12172380;
+    --line:rgba(255,255,255,.07);
+    --ink:#dbe0ec;
+    --ink-dim:#8993a8;
+    --moon:#7c5cff;
+    --moon-soft:rgba(124,92,255,.16);
+    --wolf:#ef4444;
+    --wolf-soft:rgba(239,68,68,.14);
+    --safe:#22c55e;
+    --safe-soft:rgba(34,197,94,.14);
+    --mark:#fbbf24;
+    --mark-soft:rgba(251,191,36,.14);
+    --r-sm:10px;
+    --r-md:16px;
+    --r-lg:22px;
+}
+
+*{
+    box-sizing:border-box;
+    -webkit-user-select:none;
+    user-select:none;
+}
+html{
+    height:100%;
+    height:100dvh;
+}
+body{
+    margin:0;
+    padding:0;
+    height:100%;
+    height:100dvh;
+    overflow:hidden;
+    background:
+        radial-gradient(ellipse 700px 420px at 20% -8%, rgba(124,92,255,.16), transparent 60%),
+        radial-gradient(ellipse 600px 420px at 100% 0%, rgba(239,68,68,.10), transparent 55%),
+        var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans Thai","Noto Sans Thai",sans-serif;
+    line-height:1.55;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+}
+
+/* subtle starfield */
+body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background-image:
+        radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.35), transparent 40%),
+        radial-gradient(1px 1px at 78% 8%, rgba(255,255,255,.25), transparent 40%),
+        radial-gradient(1.5px 1.5px at 60% 32%, rgba(255,255,255,.3), transparent 40%),
+        radial-gradient(1px 1px at 32% 64%, rgba(255,255,255,.2), transparent 40%),
+        radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,.25), transparent 40%),
+        radial-gradient(1.5px 1.5px at 8% 85%, rgba(255,255,255,.18), transparent 40%);
+    opacity:.5;
+    z-index:0;
+}
+
+::-webkit-scrollbar{
+    width:8px;
+}
+
+::-webkit-scrollbar-thumb{
+    background:var(--moon);
+    border-radius:20px;
+    opacity:.6;
+}
+
+::-webkit-scrollbar-track{
+    background:transparent;
+}
+
+:focus-visible{
+    outline:2px solid var(--moon);
+    outline-offset:2px;
+    border-radius:8px;
+}
+
+@keyframes rise{
+    from{ opacity:0; transform:translateY(14px); }
+    to{ opacity:1; transform:translateY(0); }
+}
+
+/* เหมือน rise แต่ไม่มี transform เลย ใช้กับกล่องที่ centering ด้วย left/right
+   (ถ้าใช้ rise ตัวเดิม transform:translateY ของ animation จะไปทับ/ลบ transform
+   ที่ใช้ centering อยู่ทันทีที่ animation จบ เพราะ fill-mode:both ค้างค่าสุดท้ายไว้) */
+@keyframes riseFade{
+    from{ opacity:0; }
+    to{ opacity:1; }
+}
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+/* ================= LAYOUT ================= */
+
+.app{
+    position:relative;
+    z-index:1;
+    width:100%;
+    max-width:560px;
+    margin:0 auto;
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    padding:10px 12px 64px;
+    overflow:hidden;
+}
+
+/* joinCard อยู่กลางจอตอน lobby */
+.app:not(.game-visible) {
+    justify-content:center;
+}
+#joinCard {
+    width:100%;
+}
+
+.card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    backdrop-filter:blur(12px);
+    border-radius:var(--r-lg);
+    padding:12px 14px;
+    margin-bottom:8px;
+    animation:rise .5s ease both;
+    flex-shrink:0;
+}
+
+.card h2,.card h3{
+    margin:0 0 2px;
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-weight:700;
+    color:#fff;
+    letter-spacing:.02em;
+}
+
+.card h2{
+    font-size:20px;
+}
+
+.card h3{
+    font-size:15px;
+}
+
+.sub{
+    margin:0 0 8px;
+    font-size:12px;
+    color:var(--ink-dim);
+}
+
+.card h2 + .sub,
+.card h3 + .sub{
+    margin-top:2px;
+}
+
+/* ---- inputs ---- */
+
+input, select{
+    width:100%;
+    padding:13px 14px;
+    margin-top:8px;
+    margin-bottom:12px;
+    border:1px solid var(--line);
+    border-radius:var(--r-sm);
+    background:#0e1320;
+    color:var(--ink);
+    box-sizing:border-box;
+    outline:none;
+    font-size:14px;
+    transition:border-color .2s, box-shadow .2s;
+    font-family:inherit;
+}
+
+input:focus, select:focus{
+    border-color:var(--moon);
+    box-shadow:0 0 0 3px var(--moon-soft);
+}
+
+input::placeholder{
+    color:var(--ink-dim);
+}
+
+.room-suggestion{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin:-4px 0 12px;
+    padding:10px 12px;
+    background:var(--moon-soft);
+    border:1px solid rgba(124,92,255,.3);
+    border-radius:var(--r-sm);
+    cursor:pointer;
+    transition:transform .15s, filter .15s;
+}
+
+.room-suggestion:active{
+    transform:scale(.98);
+}
+
+.room-suggestion.hidden{
+    display:none;
+}
+
+.room-suggestion-main{
+    font-size:12.5px;
+    color:var(--ink);
+    line-height:1.5;
+}
+
+.room-suggestion-main b{
+    font-family:"JetBrains Mono",monospace;
+    color:var(--moon);
+    letter-spacing:.05em;
+    font-size:14px;
+}
+
+.room-suggestion-host{
+    font-size:11px;
+    color:var(--ink-dim);
+}
+
+.room-suggestion-tap{
+    flex-shrink:0;
+    font-size:11px;
+    font-weight:600;
+    color:var(--moon);
+    white-space:nowrap;
+}
+
+select{
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--ink-dim) 50%),
+        linear-gradient(135deg, var(--ink-dim) 50%, transparent 50%);
+    background-position:
+        calc(100% - 18px) center,
+        calc(100% - 13px) center;
+    background-size:5px 5px, 5px 5px;
+    background-repeat:no-repeat;
+    appearance:none;
+    cursor:pointer;
+}
+
+button{
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:var(--r-sm);
+    background:linear-gradient(135deg,#7c5cff,#5b3df0);
+    color:#fff;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    transition:transform .15s, filter .15s, box-shadow .15s;
+    box-shadow:0 4px 18px rgba(124,92,255,.28);
+    font-family:inherit;
+}
+
+button:hover{
+    transform:translateY(-1px);
+    filter:brightness(1.08);
+}
+
+button:active{
+    transform:translateY(0);
+}
+
+/* ---- role display ---- */
+
+.eyebrow{
+    font-family:"JetBrains Mono",monospace;
+    font-size:11px;
+    letter-spacing:.28em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:6px;
+}
+
+#role{
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-size:36px;
+    font-weight:700;
+    margin-top:6px;
+    color:#fff;
+    text-shadow:0 0 24px rgba(124,92,255,.5);
+    line-height:1.2;
+}
+
+#role .placeholder{
+    color:var(--ink-dim);
+    font-size:22px;
+    font-weight:400;
+    font-family:"IBM Plex Sans Thai",sans-serif;
+}
+
+.realRole{
+    margin-top:12px;
+    font-size:14px;
+    color:var(--mark);
+    font-weight:600;
+    padding:8px 12px;
+    background:var(--mark-soft);
+    border:1px solid rgba(251,191,36,.3);
+    border-radius:var(--r-sm);
+}
+
+#huntInfo{
+    margin-top:10px;
+    font-size:14px;
+    color:var(--wolf);
+    font-weight:600;
+    padding:8px 12px;
+    background:var(--wolf-soft);
+    border:1px solid rgba(239,68,68,.3);
+    border-radius:var(--r-sm);
+}
+
+.hidden{
+    display:none !important;
+}
+
+/* แบนเนอร์แจ้งสถานะขาดการเชื่อมต่อ/กำลังเชื่อมต่อใหม่ */
+.conn-banner{
+    position:fixed;
+    top:8px;
+    left:12px;
+    right:12px;
+    z-index:50;
+    max-width:560px;
+    margin:0 auto;
+    padding:9px 14px;
+    border-radius:var(--r-sm);
+    background:var(--mark-soft);
+    border:1px solid rgba(251,191,36,.4);
+    color:var(--mark);
+    font-size:12.5px;
+    font-weight:600;
+    text-align:center;
+    animation:riseFade .3s ease both;
+}
+
+/* แบนเนอร์แจ้งว่ากำลังอยู่ในโหมดผู้ทดสอบ (token ผูกกับแท็บนี้เท่านั้น) */
+.tester-banner{
+    max-width:560px;
+    margin:0 auto 14px;
+    padding:9px 14px;
+    border-radius:var(--r-sm);
+    background:rgba(20,184,166,.12);
+    border:1px solid rgba(20,184,166,.35);
+    color:#5eead4;
+    font-size:12px;
+    font-weight:600;
+    text-align:center;
+}
+
+.small{
+    font-size:13px;
+    line-height:1.7;
+    color:var(--ink-dim);
+}
+
+/* role info card */
+#roleInfo .card{
+    margin-bottom:0;
+}
+
+#roleInfo h3{
+    font-size:17px;
+}
+
+/* ---- players ---- */
+
+.player{
+    position:relative;
+    overflow:hidden;
+    background:#0e1320;
+    border:1px solid transparent;
+    padding:6px 4px;
+    border-radius:var(--r-md);
+    transition:border-color .2s, box-shadow .2s, transform .15s;
+    cursor:pointer;
+    aspect-ratio:1/1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+}
+
+.player.selected{
+    border-color:var(--moon);
+    box-shadow:0 0 0 1px var(--moon), 0 0 24px rgba(124,92,255,.35);
+}
+
+.player .pname{
+    font-weight:600;
+    font-size:11px;
+    color:#fff;
+    word-break:break-word;
+    line-height:1.2;
+}
+
+.player-role-icon{
+    position:absolute;
+    bottom:4px;
+    right:5px;
+    width:20px;
+    height:20px;
+    line-height:1;
+    opacity:.85;
+    pointer-events:none;
+    filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));
+    transition:right .15s;
+}
+.player-role-icon img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    border-radius:50%;
+    display:block;
+}
+.player-silenced-icon{
+    position:absolute;
+    bottom:4px;
+    right:5px;
+    width:20px;
+    height:20px;
+    line-height:1;
+    opacity:.9;
+    pointer-events:none;
+    filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));
+}
+.player-silenced-icon img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    border-radius:50%;
+    display:block;
+}
+
+.player.dead{
+    opacity:.45;
+    filter:grayscale(100%);
+    cursor:default;
+}
+
+.player.reconnecting{
+    opacity:.6;
+    border-color:rgba(251,191,36,.45);
+    background:rgba(251,191,36,.04);
+    cursor:default;
+}
+
+.player.offline{
+    opacity:.45;
+    border-color:rgba(148,163,184,.2);
+    background:rgba(148,163,184,.03);
+    cursor:default;
+    filter:grayscale(30%);
+}
+
+/* Hunt target marker */
+.player.hunt-target{
+    border-color:rgba(239,68,68,.5);
+    box-shadow:0 0 0 1px rgba(239,68,68,.3), 0 0 14px rgba(239,68,68,.15);
+}
+
+/* Kicked overlay */
+#kickedOverlay{
+    position:fixed;
+    inset:0;
+    z-index:9999;
+    background:rgba(0,0,0,.82);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    animation:fadeIn .3s ease both;
+}
+
+.kicked-box{
+    background:#0e1320;
+    border:1px solid rgba(239,68,68,.4);
+    border-radius:16px;
+    padding:40px 48px;
+    text-align:center;
+    box-shadow:0 0 40px rgba(239,68,68,.15);
+}
+
+.kicked-icon{
+    font-size:52px;
+    margin-bottom:16px;
+}
+
+.kicked-title{
+    font-size:22px;
+    font-weight:700;
+    color:#f87171;
+    margin-bottom:8px;
+}
+
+.kicked-sub{
+    font-size:14px;
+    color:#94a3b8;
+}
+
+/* GAME OVER OVERLAY */
+#gameOverOverlay{
+    position:fixed;
+    inset:0;
+    z-index:9999;
+    background:rgba(0,0,0,.86);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    animation:fadeIn .3s ease both;
+}
+
+.gameover-box{
+    width:88%;
+    max-width:360px;
+    background:#0e1320;
+    border:1px solid var(--line);
+    border-radius:var(--r-lg);
+    padding:32px 28px;
+    text-align:center;
+    box-shadow:0 0 50px rgba(124,92,255,.18);
+}
+
+.gameover-icon{
+    font-size:46px;
+    margin-bottom:8px;
+}
+
+.gameover-role-icon{
+    width:64px;
+    height:64px;
+    border-radius:50%;
+    object-fit:cover;
+    margin:0 auto 10px;
+    display:block;
+    border:2px solid var(--line);
+}
+
+.gameover-roleName{
+    font-size:14px;
+    color:var(--ink-dim);
+    margin-bottom:6px;
+}
+
+.gameover-result{
+    font-size:30px;
+    font-weight:700;
+    margin-bottom:6px;
+}
+
+.gameover-result.win{ color:var(--safe); }
+.gameover-result.lose{ color:var(--wolf); }
+
+.gameover-titleLine{
+    font-size:15px;
+    color:var(--ink);
+    font-weight:600;
+    margin-bottom:22px;
+}
+
+.gameover-continue-btn{
+    width:100%;
+    padding:13px;
+    border:none;
+    border-radius:var(--r-md);
+    background:var(--moon);
+    color:#fff;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+}
+
+.gameover-continue-btn:disabled{
+    opacity:.5;
+}
+
+.gameover-waiting{
+    margin-top:14px;
+    font-size:13px;
+    color:var(--ink-dim);
+}
+
+
+.hunt-target-badge{
+    position:relative;
+    width:26px;
+    height:26px;
+    margin-bottom:4px;
+    flex-shrink:0;
+}
+
+.hunt-target-badge .reticle-ring{
+    position:absolute;
+    inset:0;
+    border:2px solid var(--wolf);
+    border-radius:50%;
+    animation:huntBadgePulse 1.6s ease-in-out infinite;
+}
+
+.hunt-target-badge .reticle-dot{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:5px;
+    height:5px;
+    background:var(--wolf);
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    box-shadow:0 0 6px rgba(239,68,68,.7);
+}
+
+.hunt-target-badge .reticle-tick{
+    position:absolute;
+    background:var(--wolf);
+}
+
+.hunt-target-badge .reticle-tick.top{ top:-4px; left:50%; width:2px; height:6px; transform:translateX(-50%); }
+.hunt-target-badge .reticle-tick.bottom{ bottom:-4px; left:50%; width:2px; height:6px; transform:translateX(-50%); }
+.hunt-target-badge .reticle-tick.left{ left:-4px; top:50%; width:6px; height:2px; transform:translateY(-50%); }
+.hunt-target-badge .reticle-tick.right{ right:-4px; top:50%; width:6px; height:2px; transform:translateY(-50%); }
+
+@keyframes huntBadgePulse{
+    0%,100%{ box-shadow:0 0 6px rgba(239,68,68,.45); transform:scale(1); }
+    50%{ box-shadow:0 0 14px rgba(239,68,68,.8); transform:scale(1.1); }
+}
+
+.status-dot{
+    display:inline-block;
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    margin-left:5px;
+    vertical-align:middle;
+    box-shadow:0 0 4px currentColor;
+}
+.status-dot.dot-alive{ background:#22c55e; }
+.status-dot.dot-dead{ background:#ef4444; }
+.status-dot.dot-offline{ background:#6b7280; }
+.status-dot.dot-reconnecting{ background:#fbbf24; }
+
+.empty-note{
+    font-size:13px;
+    color:var(--ink-dim);
+    padding:14px;
+    border:1px dashed var(--line);
+    border-radius:var(--r-sm);
+    text-align:center;
+}
+
+#selectInfo:not(:empty){
+    margin-top:-4px;
+    margin-bottom:12px;
+    font-size:13px;
+    color:var(--moon);
+    font-weight:600;
+}
+
+#players{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:5px;
+}
+
+/* players card — fixed height area */
+#playersCard{
+    flex-shrink:0;
+}
+
+/* ===== LOBBY / GAME TRANSITION ===== */
+#playersCard,
+#chatCard,
+#selectInfo{
+    opacity:0;
+    pointer-events:none;
+    transform:translateY(12px);
+    transition:opacity .35s ease, transform .35s ease;
+}
+.game-visible #playersCard,
+.game-visible #chatCard,
+.game-visible #selectInfo{
+    opacity:1;
+    pointer-events:auto;
+    transform:translateY(0);
+}
+.game-visible #chatCard{ transition-delay:.08s; }
+
+#joinCard{
+    transition:opacity .3s ease, transform .3s ease;
+}
+#joinCard.leaving{
+    opacity:0;
+    transform:translateY(-10px);
+    pointer-events:none;
+}
+
+#bottomBar{
+    opacity:0;
+    pointer-events:none;
+    transform:translateX(-50%) translateY(8px);
+    transition:opacity .3s ease .2s, transform .3s ease .2s;
+}
+/* #bottomBar อยู่นอก .app (เพื่อ fixed เกาะขอบจอ) จึงต้องใช้ class ของตัวเองตรงๆ
+   ไม่สามารถพึ่ง ".game-visible #bottomBar" (descendant selector) ได้
+   หมายเหตุ: ต้องคง translateX(-50%) ไว้ใน transform เดียวกันเสมอ เพราะ #bottomBar
+   จัดกึ่งกลางด้วย left:50%+translateX(-50%) — ถ้าตั้ง transform ใหม่โดยไม่มี translateX(-50%)
+   บาร์จะเลื่อนไปขวาเพราะ transform ค่าใหม่จะทับค่าเก่าทั้งหมด ไม่ใช่รวมกัน */
+#bottomBar.bar-visible{
+    opacity:1;
+    pointer-events:auto;
+    transform:translateX(-50%) translateY(0);
+}
+
+/* chat card takes all remaining space */
+#chatCard{
+    flex:1 1 0;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    background:var(--panel);
+    border:1px solid var(--line);
+    backdrop-filter:blur(12px);
+    border-radius:var(--r-lg);
+    padding:10px 12px 8px;
+    overflow:hidden;
+}
+
+/* ---- chat ---- */
+
+#chatBoxGlobal,
+#chatBoxWolf{
+    flex:1 1 0;
+    min-height:0;
+    overflow-y:auto;
+    padding:8px 10px;
+    border-radius:var(--r-md);
+    background:#0e1320;
+    border:1px solid var(--line);
+    box-shadow:inset 0 0 20px rgba(0,0,0,.3);
+    margin-bottom:8px;
+}
+
+#chatBoxGlobal:empty::after,
+#chatBoxWolf:empty::after{
+    content:"ยังไม่มีข้อความ — เริ่มทักทายเพื่อนร่วมหมู่บ้าน";
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    height:100%;
+    text-align:center;
+    color:var(--ink-dim);
+    font-size:13px;
+}
+
+.chatTabs{
+    display:flex;
+    gap:6px;
+    margin-bottom:8px;
+    flex-shrink:0;
+}
+
+.chatTab{
+    flex:1;
+    text-align:center;
+    padding:6px 10px;
+    border-radius:var(--r-md);
+    border:1px solid var(--line);
+    background:rgba(255,255,255,.03);
+    color:var(--ink-dim);
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    transition:.15s;
+    user-select:none;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+}
+
+.tab-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:17px;
+    height:17px;
+    padding:0 4px;
+    border-radius:999px;
+    font-size:10px;
+    font-weight:700;
+    font-family:"JetBrains Mono",monospace;
+    background:rgba(255,255,255,.15);
+    color:#fff;
+    line-height:1;
+    transition:opacity .2s;
+}
+
+.tab-badge.zero{
+    opacity:0;
+    pointer-events:none;
+}
+
+.chatTab.active .tab-badge{
+    background:rgba(59,130,246,.35);
+}
+
+.chatTab.active.wolfTab .tab-badge{
+    background:rgba(239,68,68,.35);
+}
+
+.chatTab.active{
+    color:#fff;
+    border-color:rgba(59,130,246,.4);
+    background:rgba(59,130,246,.15);
+}
+
+.chatTab.active.wolfTab{
+    color:#fff;
+    border-color:rgba(239,68,68,.4);
+    background:var(--wolf-soft);
+}
+
+.chatRow{
+    display:flex;
+    flex-direction:column;
+    gap:0;
+    flex-shrink:0;
+}
+
+.chatRow select{
+    width:100%;
+    margin:0;
+}
+
+.chatRow .chatInputRow{
+    display:flex;
+    gap:6px;
+    align-items:center;
+}
+
+.chatRow input{
+    flex:1;
+    margin:0;
+    padding:9px 12px;
+    font-size:13px;
+}
+
+.chatRow button{
+    width:auto;
+    flex:0 0 60px;
+    padding:9px 8px;
+    font-size:13px;
+}
+
+.legend{
+    display:none;
+}
+
+.silenced-notice{
+    display:none;
+    align-items:center;
+    gap:8px;
+    padding:9px 12px;
+    border-radius:10px;
+    background:rgba(148,163,184,.12);
+    border:1px solid rgba(148,163,184,.3);
+    color:#94a3b8;
+    font-size:13px;
+    font-weight:600;
+    width:100%;
+}
+
+.silenced-notice.visible{
+    display:flex;
+}
+
+.night-notice{
+    display:none;
+    align-items:center;
+    gap:8px;
+    padding:9px 12px;
+    border-radius:10px;
+    background:rgba(60,40,160,.18);
+    border:1px solid rgba(124,92,255,.35);
+    color:#a78bfa;
+    font-size:13px;
+    font-weight:600;
+    width:100%;
+}
+
+.night-notice.visible{
+    display:flex;
+}
+
+.chatRow input:disabled,
+.chatRow button:disabled{
+    opacity:.35;
+    cursor:not-allowed;
+    pointer-events:none;
+}
+
+/* ---- roles in game summary ---- */
+.roles-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+.role-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:9px 12px;
+    background:#0e1320;
+    border:1px solid var(--line);
+    border-radius:var(--r-sm);
+    font-size:13px;
+}
+
+.role-row-name{
+    color:var(--ink);
+    font-weight:500;
+}
+
+.role-row-count{
+    font-family:"JetBrains Mono",monospace;
+    font-size:12px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:6px;
+    background:var(--moon-soft);
+    color:var(--moon);
+    border:1px solid rgba(124,92,255,.25);
+}
+
+.role-row.wolf-role{
+    border-color:rgba(239,68,68,.2);
+}
+
+.role-row.wolf-role .role-row-count{
+    background:var(--wolf-soft);
+    color:var(--wolf);
+    border-color:rgba(239,68,68,.3);
+}
+
+.role-row.solo-role{
+    border-color:rgba(251,191,36,.2);
+}
+
+.role-row.solo-role .role-row-count{
+    background:var(--mark-soft);
+    color:var(--mark);
+    border-color:rgba(251,191,36,.3);
+}
+
+.role-row.mine-role{
+    border-color:var(--moon);
+    box-shadow:0 0 0 1px rgba(124,92,255,.25) inset;
+}
+
+.mine-tag{
+    color:var(--moon);
+    font-weight:600;
+    font-size:11px;
+}
+
+.roles-section-label{
+    font-family:"JetBrains Mono",monospace;
+    font-size:10px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin:10px 0 4px;
+}
+
+/* ---- role row: expandable description toggle ---- */
+.role-row-wrap{
+    display:flex;
+    flex-direction:column;
+}
+
+.role-row-left{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-width:0;
+}
+
+.role-row-left .role-row-name{
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+.role-toggle-btn{
+    flex-shrink:0;
+    width:22px;
+    height:22px;
+    min-width:22px;
+    padding:0;
+    margin:0;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:#0a0e18;
+    color:var(--ink-dim);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    box-shadow:none;
+}
+
+.role-toggle-btn:hover{
+    border-color:var(--moon);
+    color:var(--moon);
+    transform:none;
+    filter:none;
+}
+
+.role-toggle-btn:active{
+    transform:none;
+}
+
+.role-toggle-arrow{
+    display:inline-block;
+    font-size:9px;
+    line-height:1;
+    transition:transform .25s ease;
+}
+
+.role-toggle-btn.open{
+    border-color:var(--moon);
+    color:var(--moon);
+    background:var(--moon-soft);
+}
+
+.role-toggle-btn.open .role-toggle-arrow{
+    transform:rotate(90deg);
+}
+
+.role-desc-panel{
+    margin-top:-2px;
+    padding:10px 12px;
+    background:rgba(124,92,255,.06);
+    border:1px solid var(--line);
+    border-top:none;
+    border-radius:0 0 var(--r-sm) var(--r-sm);
+    animation:rise .2s ease both;
+}
+
+.role-desc-panel.hidden{
+    display:none;
+}
+
+.role-desc-title{
+    color:#fff;
+    font-weight:600;
+    font-size:12.5px;
+    margin-bottom:4px;
+}
+
+.role-desc-text{
+    font-size:12.5px;
+    line-height:1.65;
+    color:var(--ink-dim);
+}
+
+.role-desc-flex{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+}
+
+.role-desc-img{
+    width:52px;
+    height:52px;
+    object-fit:cover;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:#0a0e18;
+    flex-shrink:0;
+}
+
+.role-desc-img.big{
+    width:72px;
+    height:72px;
+    border-radius:14px;
+}
+
+.role-desc-body{
+    flex:1;
+    min-width:0;
+}
+
+/* ===== BOTTOM BAR ===== */
+
+/* เพิ่ม padding ล่างเพื่อไม่ให้ content ซ่อนอยู่หลัง bar */
+body{
+    padding-bottom:0;
+}
+
+#bottomBar{
+    position:fixed;
+    bottom:0;
+    left:50%;
+    transform:translateX(-50%);
+    width:min(560px, 100vw);
+    z-index:900;
+    background:rgba(14,19,32,.92);
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    border-top:1px solid rgba(255,255,255,.1);
+    border-radius:0;
+    padding:8px 16px env(safe-area-inset-bottom, 8px);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    box-shadow:0 -4px 20px rgba(0,0,0,.4);
+    flex-shrink:0;
+}
+
+#maskBtn{
+    width:40px;
+    height:40px;
+    flex-shrink:0;
+    border-radius:50%;
+    background:var(--moon-soft);
+    border:1px solid rgba(124,92,255,.35);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:20px;
+    cursor:pointer;
+    transition:transform .15s, background .2s, box-shadow .15s;
+    box-shadow:none;
+    padding:0;
+}
+
+#maskBtn:hover{
+    background:rgba(124,92,255,.28);
+    box-shadow:0 0 16px rgba(124,92,255,.4);
+    transform:scale(1.08);
+}
+
+#maskBtn:active{
+    transform:scale(.95);
+}
+
+#barRoleText{
+    flex:1;
+    min-width:0;
+}
+
+#barRoleName{
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-size:18px;
+    font-weight:700;
+    color:#fff;
+    line-height:1.2;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+#barRoleSub{
+    font-size:11px;
+    color:var(--ink-dim);
+    margin-top:1px;
+}
+
+#barHuntBadge{
+    font-size:12px;
+    color:var(--wolf);
+    font-weight:600;
+    background:var(--wolf-soft);
+    border:1px solid rgba(239,68,68,.3);
+    border-radius:999px;
+    padding:3px 10px;
+    white-space:nowrap;
+    flex-shrink:0;
+}
+
+#barHuntBadge.hidden{ display:none; }
+
+#shieldBtn{
+    position:relative;
+    flex-shrink:0;
+    width:40px;
+    height:40px;
+    border-radius:50%;
+    background:rgba(56,189,248,.16);
+    border:1px solid rgba(56,189,248,.4);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:18px;
+    cursor:pointer;
+    transition:transform .15s, background .2s, box-shadow .15s;
+    padding:0;
+}
+
+#shieldBtn:hover{
+    background:rgba(56,189,248,.28);
+    box-shadow:0 0 16px rgba(56,189,248,.4);
+    transform:scale(1.08);
+}
+
+#shieldBtn:active{ transform:scale(.95); }
+
+#shieldBtn.hidden{ display:none; }
+
+#shieldBtn.active{
+    background:rgba(56,189,248,.4);
+    box-shadow:0 0 16px rgba(56,189,248,.55);
+}
+
+#shieldBtn.depleted{
+    opacity:.4;
+    cursor:not-allowed;
+    box-shadow:none;
+}
+
+#shieldCount{
+    position:absolute;
+    bottom:-3px;
+    right:-3px;
+    min-width:16px;
+    height:16px;
+    padding:0 3px;
+    border-radius:999px;
+    background:#0e1320;
+    border:1px solid rgba(56,189,248,.6);
+    color:#38bdf8;
+    font-size:10px;
+    font-weight:700;
+    line-height:14px;
+    text-align:center;
+}
+
+/* ===== ROLE POPUP ===== */
+
+#rolePopupOverlay{
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    background:rgba(6,9,18,.75);
+    backdrop-filter:blur(4px);
+    -webkit-backdrop-filter:blur(4px);
+    animation:fadeIn .2s ease;
+}
+
+#rolePopupOverlay.hidden{ display:none; }
+
+#rolePopup{
+    position:fixed;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    z-index:1001;
+    width:min(480px, calc(100vw - 32px));
+    max-height:min(640px, calc(100vh - 48px));
+    display:flex;
+    flex-direction:column;
+    background:#12172f;
+    border:1px solid rgba(255,255,255,.1);
+    border-radius:var(--r-lg);
+    box-shadow:0 24px 64px rgba(0,0,0,.7), 0 0 0 1px rgba(124,92,255,.15);
+    overflow:hidden;
+    animation:popIn .25s cubic-bezier(.34,1.56,.64,1);
+}
+
+#rolePopup.hidden{ display:none; }
+
+#rolePopupHeader{
+    padding:18px 20px 14px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+}
+
+#rolePopupClose{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    background:rgba(255,255,255,.07);
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    font-size:18px;
+    line-height:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    flex-shrink:0;
+    padding:0;
+    box-shadow:none;
+    width:32px;
+    transition:background .15s, color .15s;
+}
+
+#rolePopupClose:hover{
+    background:rgba(255,255,255,.14);
+    color:#fff;
+    transform:none;
+    filter:none;
+}
+
+#rolePopupBody{
+    overflow-y:auto;
+    padding:18px 20px 24px;
+    flex:1;
+}
+
+#popupRoleName{
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-size:32px;
+    font-weight:700;
+    color:#fff;
+    text-shadow:0 0 24px rgba(124,92,255,.5);
+    line-height:1.2;
+    margin-bottom:4px;
+}
+
+#popupRealRole{
+    font-size:13px;
+    color:var(--mark);
+    font-weight:600;
+    padding:6px 12px;
+    background:var(--mark-soft);
+    border:1px solid rgba(251,191,36,.3);
+    border-radius:var(--r-sm);
+    margin-bottom:12px;
+}
+
+#popupRealRole.hidden{ display:none; }
+
+#popupHuntInfo{
+    font-size:13px;
+    color:var(--wolf);
+    font-weight:600;
+    padding:6px 12px;
+    background:var(--wolf-soft);
+    border:1px solid rgba(239,68,68,.3);
+    border-radius:var(--r-sm);
+    margin-bottom:12px;
+}
+
+#popupHuntInfo.hidden{ display:none; }
+
+#popupRoleDesc{
+    margin-top:14px;
+}
+
+#popupRoleDesc h3{
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-weight:700;
+    color:#fff;
+    font-size:16px;
+    margin:0 0 6px;
+}
+
+.popup-divider{
+    height:1px;
+    background:var(--line);
+    margin:18px 0;
+}
+
+#popupRolesInGame{}
+
+/* ===== VOTE MODE / WOLF KILL MODE =====
+   แสดงในกริดผู้เล่นเดิม (#players) แทนที่จะเป็นป๊อปอัปลอยแยกต่างหาก
+   เหลือไว้แค่ keyframes ที่ใช้ร่วมกับที่อื่นในไฟล์ */
+
+@keyframes fadeIn{
+    from{ opacity:0; }
+    to{ opacity:1; }
+}
+
+@keyframes popIn{
+    from{ opacity:0; transform:translate(-50%,-46%) scale(.94); }
+    to{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+}
+
+body.vote-open{
+    overflow:hidden;
+}
+
+.vote-banner{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:14px 16px;
+    background:rgba(34,197,94,.1);
+    border:1px solid rgba(34,197,94,.3);
+    border-radius:var(--r-md);
+    margin-bottom:14px;
+    animation:rise .3s ease;
+}
+
+.vote-banner-icon{
+    font-size:22px;
+}
+
+.vote-banner-text{
+    font-size:14px;
+    font-weight:600;
+    color:var(--safe);
+}
+
+.vote-banner-sub{
+    font-size:12px;
+    color:var(--ink-dim);
+    margin-top:2px;
+}
+
+/* ===== โหมดโหวต/โหมดหมาป่าเลือกฆ่า แสดงบนการ์ดผู้เล่นในกริดเดิม (#players) =====
+   เมื่อโหมดใดโหมดหนึ่งเปิดอยู่ การ์ดจะขยายสูงขึ้น (ไม่ล็อก aspect-ratio สี่เหลี่ยมจัตุรัส)
+   เพื่อมีที่แสดง badge จำนวนโหวต/เป้าหมายที่เลือกไว้ */
+
+#players.mode-active{
+    grid-template-columns:repeat(auto-fill, minmax(96px,1fr));
+}
+
+#players.mode-active .player{
+    aspect-ratio:auto;
+    min-height:88px;
+    padding:10px 6px 8px;
+    justify-content:flex-start;
+}
+
+.player.my-target{
+    border-color:var(--safe);
+    box-shadow:0 0 0 1px var(--safe), 0 0 16px rgba(34,197,94,.2);
+    background:rgba(34,197,94,.06);
+}
+
+.player.my-kill-target{
+    border-color:var(--wolf);
+    box-shadow:0 0 0 1px var(--wolf), 0 0 16px rgba(239,68,68,.25);
+    background:rgba(239,68,68,.07);
+}
+
+.player.my-shield-target{
+    border-color:#38bdf8;
+    box-shadow:0 0 0 1px #38bdf8, 0 0 16px rgba(56,189,248,.3);
+    background:rgba(56,189,248,.08);
+}
+
+.shield-placed-badge{
+    display:inline-block;
+    margin-top:5px;
+    font-size:13px;
+}
+
+.player.kill-restricted{
+    cursor:not-allowed;
+    opacity:.55;
+    border-style:dashed;
+}
+
+.vote-count-badge{
+    display:block;
+    margin-top:5px;
+    font-size:11px;
+    padding:2px 8px;
+    border-radius:999px;
+    background:rgba(239,68,68,.18);
+    color:var(--wolf);
+    border:1px solid rgba(239,68,68,.3);
+    font-family:"JetBrains Mono",monospace;
+    font-weight:700;
+}
+
+.vote-count-badge.reached{
+    background:#ef4444;
+    color:#fff;
+    border-color:#ef4444;
+}
+
+.vote-voter-list{
+    margin-top:4px;
+    font-size:10px;
+    color:var(--ink-dim);
+    line-height:1.3;
+}
+
+#modeBannerMyStatus{
+    text-align:left;
+}
+
+/* ===== WOLF KILL MODE — โทนสีแดง ===== */
+
+.kill-banner{
+    background:rgba(239,68,68,.1) !important;
+    border-color:rgba(239,68,68,.3) !important;
+}
+
+/* ===== ROLE REVEAL ANIMATION ===== */
+
+#roleRevealOverlay{
+    position:fixed;
+    inset:0;
+    z-index:2000;
+    background:rgba(6,9,18,.95);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:0;
+    pointer-events:none;
+}
+
+#roleRevealOverlay.hidden{ display:none; }
+
+@keyframes revealFadeIn{
+    from{ opacity:0; }
+    to{ opacity:1; }
+}
+@keyframes revealFadeOut{
+    from{ opacity:1; }
+    to{ opacity:0; }
+}
+@keyframes slotSpin{
+    0%{ transform:translateY(0); filter:blur(2px); opacity:.7; }
+    50%{ transform:translateY(-6px); filter:blur(1px); opacity:.9; }
+    100%{ transform:translateY(0); filter:blur(0); opacity:1; }
+}
+@keyframes revealPop{
+    0%{ transform:scale(.7); opacity:0; }
+    60%{ transform:scale(1.08); opacity:1; }
+    80%{ transform:scale(.97); }
+    100%{ transform:scale(1); }
+}
+@keyframes revealGlow{
+    0%,100%{ text-shadow:0 0 30px rgba(124,92,255,.6), 0 0 60px rgba(124,92,255,.3); }
+    50%{ text-shadow:0 0 50px rgba(124,92,255,1), 0 0 100px rgba(124,92,255,.5); }
+}
+@keyframes revealSlideDown{
+    from{ opacity:0; transform:translateY(-16px); }
+    to{ opacity:1; transform:translateY(0); }
+}
+@keyframes huntAim{
+    0%{ transform:scale(2) rotate(-30deg); opacity:0; }
+    20%{ opacity:1; }
+    60%{ transform:scale(1.1) rotate(5deg); }
+    80%{ transform:scale(1) rotate(0deg); }
+    100%{ transform:scale(1) rotate(0deg); opacity:1; }
+}
+@keyframes huntPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.5), inset 0 0 0 0 rgba(239,68,68,.2); }
+    50%{ box-shadow:0 0 0 8px rgba(239,68,68,0), inset 0 0 0 2px rgba(239,68,68,.15); }
+}
+@keyframes crosshairScan{
+    0%{ transform:translate(-50%,-50%) scale(1.4); opacity:0; }
+    15%{ opacity:1; }
+    80%{ transform:translate(-50%,-50%) scale(1); }
+    100%{ transform:translate(-50%,-50%) scale(1); opacity:1; }
+}
+@keyframes lineH{
+    from{ transform:scaleX(0); opacity:0; }
+    to{ transform:scaleX(1); opacity:1; }
+}
+@keyframes lineV{
+    from{ transform:scaleY(0); opacity:0; }
+    to{ transform:scaleY(1); opacity:1; }
+}
+
+#revealLabel{
+    font-family:"JetBrains Mono",monospace;
+    font-size:11px;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:22px;
+    animation:revealSlideDown .5s ease both;
+}
+
+#revealSlotBox{
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-size:48px;
+    font-weight:700;
+    color:#fff;
+    min-width:280px;
+    text-align:center;
+    padding:18px 32px;
+    border:1px solid rgba(124,92,255,.25);
+    border-radius:var(--r-lg);
+    background:rgba(124,92,255,.07);
+    margin-bottom:28px;
+    position:relative;
+    overflow:hidden;
+    line-height:1.2;
+}
+
+#revealSlotBox::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:linear-gradient(180deg,rgba(10,13,20,.85) 0%,transparent 30%,transparent 70%,rgba(10,13,20,.85) 100%);
+    pointer-events:none;
+    z-index:1;
+}
+
+#revealSlotText{
+    position:relative;
+    z-index:2;
+    display:block;
+}
+
+#revealSlotText.slot-spinning{
+    animation:slotSpin .12s ease infinite;
+}
+
+#revealSlotText.slot-final{
+    animation:revealPop .45s cubic-bezier(.34,1.56,.64,1) both, revealGlow 2s ease infinite .5s;
+}
+
+#revealDesc{
+    font-size:14px;
+    color:var(--ink-dim);
+    text-align:center;
+    max-width:280px;
+    line-height:1.7;
+    animation:revealSlideDown .4s ease both .3s;
+    opacity:0;
+    animation-fill-mode:both;
+}
+
+/* Hunt target box */
+#revealHuntBox{
+    margin-top:28px;
+    position:relative;
+    padding:16px 24px 16px 56px;
+    border:1px solid rgba(239,68,68,.4);
+    border-radius:var(--r-md);
+    background:rgba(239,68,68,.08);
+    min-width:240px;
+    animation:huntPulse 2s ease infinite;
+    display:none;
+}
+
+#revealHuntBox.visible{ display:block; }
+
+#revealHuntIcon{
+    position:absolute;
+    left:16px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:26px;
+    animation:huntAim .8s cubic-bezier(.34,1.56,.64,1) both .3s;
+}
+
+#revealHuntLabel{
+    font-family:"JetBrains Mono",monospace;
+    font-size:10px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    color:rgba(239,68,68,.7);
+    margin-bottom:4px;
+}
+
+#revealHuntName{
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-size:24px;
+    font-weight:700;
+    color:var(--wolf);
+    text-shadow:0 0 16px rgba(239,68,68,.5);
+    line-height:1.2;
+    position:relative;
+}
+
+/* Crosshair that lands on hunt target name */
+.crosshair{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    width:44px;
+    height:44px;
+    pointer-events:none;
+    animation:crosshairScan .7s cubic-bezier(.34,1.2,.64,1) both .2s;
+}
+.crosshair::before,.crosshair::after{
+    content:"";
+    position:absolute;
+    background:var(--wolf);
+}
+.crosshair::before{
+    /* horizontal */
+    width:100%;
+    height:2px;
+    top:50%;
+    left:0;
+    transform:translateY(-50%);
+    animation:lineH .35s ease both .9s;
+    transform-origin:center;
+    opacity:0;
+    animation-fill-mode:both;
+}
+.crosshair::after{
+    /* vertical */
+    width:2px;
+    height:100%;
+    left:50%;
+    top:0;
+    transform:translateX(-50%);
+    animation:lineV .35s ease both .9s;
+    transform-origin:center;
+    opacity:0;
+    animation-fill-mode:both;
+}
+.crosshair-ring{
+    position:absolute;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    width:44px;height:44px;
+    border:2px solid var(--wolf);
+    border-radius:50%;
+    opacity:0;
+    animation:fadeIn .3s ease both .85s;
+}
+.crosshair-dot{
+    position:absolute;
+    top:50%;left:50%;
+    width:5px;height:5px;
+    background:var(--wolf);
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    opacity:0;
+    animation:fadeIn .2s ease both 1s;
+}
+
+/* Stars/particles */
+.reveal-stars{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    overflow:hidden;
+}
+.reveal-star{
+    position:absolute;
+    width:3px;
+    height:3px;
+    background:#fff;
+    border-radius:50%;
+    opacity:0;
+}
+@keyframes starPop{
+    0%{ opacity:0; transform:scale(0) translate(0,0); }
+    50%{ opacity:1; }
+    100%{ opacity:0; transform:scale(1) translate(var(--tx),var(--ty)); }
+}
+.msg{
+    border-radius:var(--r-sm);
+    padding:6px 9px;
+    margin-bottom:6px;
+    animation:rise .2s ease;
+    line-height:1.4;
+    word-break:break-word;
+    border:1px solid var(--line);
+    background:rgba(255,255,255,.02);
+    font-size:12px;
+}
+
+.msgGlobal{
+    background:rgba(59,130,246,.12);
+    border-color:rgba(59,130,246,.25);
+}
+
+.msgWolf{
+    background:var(--wolf-soft);
+    border-color:rgba(239,68,68,.25);
+}
+
+.msgHost{
+    background:var(--moon-soft);
+    border-color:rgba(124,92,255,.3);
+}
+
+.msgPrivate{
+    background:var(--safe-soft);
+    border-color:rgba(34,197,94,.3);
+}
+
+.msgName{
+    font-weight:700;
+    color:#fff;
+    margin-bottom:1px;
+    font-size:11px;
+}
+
+.msgType{
+    display:none;
+}
+
+.msgSystem,
+.msgSystem .msgName{
+    color:var(--safe);
+}
+
+/* ===== ww-modal: ป็อปอัป alert/confirm แบบ CSS เอง ไม่ใช้ alert()/confirm() ของเบราว์เซอร์
+   เพราะ alert()/confirm() เป็น native dialog ที่ "บล็อก" ทั้งหน้าและ JS thread ทั้งหมด
+   ระหว่างรอผู้เล่นกดตกลง ซึ่งบนมือถือบางทีค้างนานหรือดีเลย์การประมวลผล socket/reconnect ===== */
+.ww-modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.65);
+    display:flex; align-items:center; justify-content:center;
+    z-index:99999; padding:20px; animation:wwFadeIn .15s ease-out;
+}
+@keyframes wwFadeIn{ from{opacity:0;} to{opacity:1;} }
+.ww-modal-box{
+    background:#1e2230; color:#fff; border-radius:16px; padding:26px 22px;
+    max-width:360px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,.55);
+    text-align:center; border:1px solid rgba(255,255,255,.08);
+}
+.ww-modal-msg{ font-size:15.5px; line-height:1.55; margin-bottom:20px; white-space:pre-line; }
+.ww-modal-actions{ display:flex; gap:10px; }
+.ww-modal-btn{
+    flex:1; padding:12px 14px; border:none; border-radius:10px;
+    font-size:14.5px; font-weight:700; cursor:pointer; font-family:inherit;
+}
+.ww-modal-ok{ background:#6366f1; color:#fff; }
+.ww-modal-ok:active{ background:#4f52d6; }
+.ww-modal-cancel{ background:#374151; color:#e5e7eb; }
+.ww-modal-cancel:active{ background:#2b323f; }
+</style>
+
+</head>
+<body>
+
+<div class="app">
+
+<div id="testerBanner" class="tester-banner hidden">🧪 โหมดผู้ทดสอบ — บัญชีนี้ผูกกับแท็บนี้เท่านั้น</div>
+
+<div id="connBanner" class="conn-banner hidden">🔌 ขาดการเชื่อมต่อ กำลังพยายามเชื่อมต่อใหม่...</div>
+
+<!-- JOIN CARD -->
+<div class="card" id="joinCard">
+
+    <div class="eyebrow">เข้าสู่หมู่บ้าน</div>
+    <h2>เข้าร่วมห้อง</h2>
+    <p class="sub">กรอกชื่อและรหัสห้องที่ผู้เล่าเรื่องมอบให้</p>
+
+    <input
+        id="name"
+        placeholder="ชื่อผู้เล่น"
+    >
+
+    <input
+        id="room"
+        placeholder="โค้ดห้อง"
+    >
+
+    <div id="roomSuggestion" class="room-suggestion hidden" onclick="useSuggestedRoom()">
+        <div class="room-suggestion-main">
+            🔗 ห้องที่เปิดอยู่: <b id="roomSuggestionCode">—</b>
+            <div class="room-suggestion-host" id="roomSuggestionHost"></div>
+        </div>
+        <span class="room-suggestion-tap">แตะเพื่อใส่อัตโนมัติ</span>
+    </div>
+
+    <button onclick="join()">
+        เข้าร่วมห้อง
+    </button>
+
+</div>
+
+<!-- GAME INFO CARD (hidden ตลอด — ย้ายไปอยู่ใน popup แล้ว) -->
+<div id="gameInfoCard" class="hidden">
+    <div id="gameRoomLabel"></div>
+    <div id="gamePlayerName"></div>
+    <div id="rolesInGame"></div>
+</div>
+
+<!-- (role/realRole/huntInfo/roleInfo เก็บ hidden ไว้ให้ JS ยังใช้ได้) -->
+<div id="role" class="hidden"></div>
+<div id="realRole" class="hidden"></div>
+<div id="huntInfo" class="hidden"></div>
+<div id="roleInfo" class="hidden"></div>
+
+<div id="selectInfo" class="small"></div>
+
+<div class="card hidden" id="playersCard">
+
+    <h3>
+        ผู้เล่นในห้อง
+    </h3>
+    <p class="sub" id="playersSub"></p>
+
+    <!-- MODE BANNER: แสดงเมื่อโหมดโหวต/โหมดหมาป่าเลือกฆ่าเปิดอยู่ — อยู่เหนือกริดผู้เล่นเดิม ไม่ใช่ป๊อปอัปแยก -->
+    <div id="modeBanner" class="vote-banner hidden">
+        <div class="vote-banner-icon" id="modeBannerIcon">🗳️</div>
+        <div>
+            <div class="vote-banner-text" id="modeBannerText">โหมดโหวต — เลือกคนที่จะโหวต</div>
+            <div class="vote-banner-sub" id="modeBannerSub">ทุกคนจะเห็นว่าคุณโหวตใคร</div>
+            <div class="vote-banner-sub" id="modeBannerThreshold"></div>
+            <div class="vote-banner-sub" id="modeBannerMyStatus" style="margin-top:6px;font-weight:600;"></div>
+        </div>
+    </div>
+
+    <div id="players"></div>
+
+</div>
+
+<div id="chatCard" class="hidden">
+
+    <div class="chatTabs" id="chatTabs">
+        <div class="chatTab active" id="tabGlobal" onclick="switchChatTab('global')">
+            🔵 แชทรวม
+            <span class="tab-badge zero" id="badgeGlobal">0</span>
+        </div>
+        <div class="chatTab hidden" id="tabWolf" onclick="switchChatTab('wolf')">
+            🔴 แชทหมาป่า
+            <span class="tab-badge zero" id="badgeWolf">0</span>
+        </div>
+    </div>
+
+    <div id="chatBoxGlobal"></div>
+    <div id="chatBoxWolf" class="hidden"></div>
+
+    <div class="chatRow">
+
+        <div id="silencedNotice" class="silenced-notice">
+            🤐 คุณถูกใบ้ในรอบนี้ — พิมพ์ข้อความไม่ได้
+        </div>
+
+        <div id="nightNotice" class="night-notice">
+            🌙 ช่วงกลางคืน — แชทรวมส่งไม่ได้ แต่พิมพ์ค้างไว้ได้
+        </div>
+
+        <div class="chatInputRow" id="chatInputRow">
+            <input
+                id="chatInput"
+                placeholder="พิมพ์ข้อความ..."
+                maxlength="200"
+            >
+
+            <button
+                class="sendBtn"
+                onclick="sendChat()"
+            >
+                ส่ง
+            </button>
+        </div>
+
+    </div>
+
+</div>
+
+</div><!-- end .app -->
+
+<!-- BOTTOM BAR (outside .app so it sticks to viewport bottom) -->
+<div id="bottomBar" class="hidden">
+    <button id="maskBtn" onclick="openRolePopup()" title="ดูบทของคุณ">🎭</button>
+    <div id="barRoleText">
+        <div id="barRoleName">ยังไม่ได้รับบท</div>
+        <div id="barRoleSub">แตะหน้ากากเพื่อดูรายละเอียด</div>
+    </div>
+    <div id="barHuntBadge" class="hidden"></div>
+    <button id="shieldBtn" class="hidden" onclick="toggleShieldMode()" title="วางโล่ป้องกันการประหาร">
+        🛡️<span id="shieldCount">1</span>
+    </button>
+</div>
+
+<!-- ROLE REVEAL ANIMATION OVERLAY -->
+<div id="roleRevealOverlay" class="hidden">
+    <div class="reveal-stars" id="revealStars"></div>
+    <div id="revealLabel">✦ บทบาทของคุณคือ ✦</div>
+    <div id="revealSlotBox">
+        <span id="revealSlotText">—</span>
+    </div>
+    <div id="revealDesc"></div>
+    <div id="revealHuntBox">
+        <div id="revealHuntIcon">🎯</div>
+        <div id="revealHuntLabel">เป้าหมายของคุณ</div>
+        <div id="revealHuntName">
+            <span id="revealHuntNameText"></span>
+            <span class="crosshair">
+                <span class="crosshair-ring"></span>
+                <span class="crosshair-dot"></span>
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- ROLE POPUP OVERLAY -->
+<div id="rolePopupOverlay" class="hidden" onclick="closeRolePopup()"></div>
+
+<!-- ROLE POPUP -->
+<div id="rolePopup" class="hidden">
+    <div id="rolePopupHeader">
+        <div>
+            <div class="eyebrow" style="margin-bottom:4px;">บทของคุณ</div>
+            <div id="popupRoleName">—</div>
+        </div>
+        <button id="rolePopupClose" onclick="closeRolePopup()">✕</button>
+    </div>
+    <div id="rolePopupBody">
+        <div id="popupRealRole" class="hidden"></div>
+        <div id="popupHuntInfo" class="hidden"></div>
+        <div id="popupRoleDesc"></div>
+        <div class="popup-divider"></div>
+        <div class="eyebrow" style="margin-bottom:8px;">บทในเกมรอบนี้</div>
+        <div id="popupRolesInGame"></div>
+    </div>
+</div>
+
+<!-- GAME OVER OVERLAY (สรุปผลเกม แพ้/ชนะ) -->
+<div id="gameOverOverlay" class="hidden">
+    <div class="gameover-box" id="gameOverBox">
+        <div class="gameover-icon" id="gameOverIcon">🏆</div>
+        <img id="gameOverRoleIcon" class="gameover-role-icon hidden" alt="">
+        <div class="gameover-roleName" id="gameOverRoleName"></div>
+        <div class="gameover-result" id="gameOverResult">ชนะ</div>
+        <div class="gameover-titleLine" id="gameOverTitleLine">ทีม...ชนะ</div>
+        <button class="gameover-continue-btn" id="gameOverContinueBtn" onclick="confirmContinue()">
+            ดำเนินการต่อ <span id="gameOverCountdown">(5)</span>
+        </button>
+        <div class="gameover-waiting hidden" id="gameOverWaiting">
+            ✅ พร้อมแล้ว — รอผู้เล่นคนอื่น... (<span id="gameOverReadyCount">0</span>/<span id="gameOverTotalCount">0</span>)
+        </div>
+    </div>
+</div>
+
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+
+const socket = io();
+
+// ===== ww-modal helpers: แทน alert()/confirm() ของเบราว์เซอร์ทั้งหมด =====
+// alert()/confirm() แบบ native จะ "หยุดทุกอย่าง" ในหน้ารวมถึง JS event loop จนกว่าจะกดตกลง
+// ทำให้ socket/timer ต่าง ๆ ดูเหมือนค้างไปด้วยตอนมีแจ้งเตือนขึ้น โดยเฉพาะบนมือถือ
+// เปลี่ยนมาใช้ป็อปอัปที่ทำเองด้วย CSS/DOM แทน ซึ่งไม่บล็อก thread เลย
+function wwAlert(message) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "ww-modal-overlay";
+        overlay.innerHTML = `
+            <div class="ww-modal-box">
+                <div class="ww-modal-msg"></div>
+                <div class="ww-modal-actions">
+                    <button class="ww-modal-btn ww-modal-ok">ตกลง</button>
+                </div>
+            </div>`;
+        overlay.querySelector(".ww-modal-msg").textContent = message;
+        document.body.appendChild(overlay);
+        overlay.querySelector(".ww-modal-ok").onclick = () => {
+            overlay.remove();
+            resolve(true);
+        };
+    });
+}
+
+function wwConfirm(message) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "ww-modal-overlay";
+        overlay.innerHTML = `
+            <div class="ww-modal-box">
+                <div class="ww-modal-msg"></div>
+                <div class="ww-modal-actions">
+                    <button class="ww-modal-btn ww-modal-cancel">ยกเลิก</button>
+                    <button class="ww-modal-btn ww-modal-ok">ยืนยัน</button>
+                </div>
+            </div>`;
+        overlay.querySelector(".ww-modal-msg").textContent = message;
+        document.body.appendChild(overlay);
+        overlay.querySelector(".ww-modal-ok").onclick = () => { overlay.remove(); resolve(true); };
+        overlay.querySelector(".ww-modal-cancel").onclick = () => { overlay.remove(); resolve(false); };
+    });
+}
+function selectTarget(targetId) {
+    if (!currentRoomId) return;
+    socket.emit("select_target", { roomId: currentRoomId, targetId });
+}
+
+let joined = false;
+let myRole = "";
+let mySilenced = false;
+let gameOverConfirmed = false; // กดดำเนินการต่อแล้วหรือยังในรอบ gameOver นี้
+let gameOverCountdownTimer = null;
+let myAlive = true;
+let isNight = false;
+let currentChatTab = "global";
+let myHuntTargetId = null; // ID ของเป้าหมายนักล่าหัว
+let shieldModeActive = false; // กำลังอยู่โหมดเลือกวางโล่ (หมาป่าพิทักษ์) อยู่หรือไม่
+let suggestedRoomData = null; // ห้องล่าสุดที่เปิดอยู่ (จาก server)
+let currentRoomId = null; // ห้องที่ join อยู่ตอนนี้ ใช้ตอนเชื่อมต่อใหม่อัตโนมัติ
+
+// ===== โหมดผู้ทดสอบ =====
+// ปกติ token ผูกกับ localStorage ซึ่ง "ใช้ร่วมกันทั้งเบราว์เซอร์" ทุกแท็บ
+// เลยทำให้เปิดหลายแท็บบนมือถือเครื่องเดียวแล้วต่อห้องเดียวกัน กลายเป็นผู้เล่นคนเดิมซ้ำ (reconnect)
+// โหมดผู้ทดสอบ (?tester=1 จากหน้าแรกที่กรอกรหัสผ่านแล้ว) จะสลับไปใช้ sessionStorage แทน
+// ซึ่ง "แยกอิสระต่อแท็บ/หน้าต่าง" — เปิดกี่แท็บก็ได้คนละ token กัน เปิดเป็นผู้เล่นคนละคนได้จริง
+// แต่ยังรีเฟรชหน้าในแท็บเดิมได้โดยไม่หลุด เพราะ sessionStorage อยู่รอดผ่านการรีเฟรช
+// (จะหลุดก็ตอนปิดแท็บ/หน้าต่างนั้นไปจริงๆ หรือโดนเตะ/ห้องยุบ เหมือนผู้เล่นปกติ)
+const urlParams = new URLSearchParams(window.location.search);
+const TESTER_MODE = urlParams.get("tester") === "1" || sessionStorage.getItem("ww_tester") === "1";
+if (TESTER_MODE) sessionStorage.setItem("ww_tester", "1");
+const ww_store = TESTER_MODE ? sessionStorage : localStorage;
+
+if (TESTER_MODE) {
+    document.getElementById("testerBanner")?.classList.remove("hidden");
+}
+
+// ===== จำตัวตนผู้เล่นไว้ในเครื่อง (localStorage ปกติ / sessionStorage ถ้าเป็นโหมดผู้ทดสอบ) =====
+// 1) ใช้ auto-fill ชื่อ/ห้องล่าสุดให้ตอนเปิดเว็บใหม่หรือรีเฟรช
+// 2) ใช้เป็น "token" ประจำเครื่อง/เบราว์เซอร์นี้ เพื่อให้ตอนเน็ตหลุด-กลับมา
+//    เซิร์ฟเวอร์รู้ว่าเป็นผู้เล่นคนเดิม ไม่ใช่คนใหม่ (กันบทบาท/สถานะหาย และกันกริดผู้เล่นไม่อัปเดต)
+function getClientToken() {
+    let t = ww_store.getItem("ww_token");
+    // โหมดผู้ทดสอบ: ถ้า sessionStorage ถูกล้าง (มือถือ discard แท็บคืน RAM ตอนสลับจอ/แอป
+    // ซึ่งพบได้บ่อยเวลาทดสอบด้วยมือถือเครื่องเดียวหลายแท็บ) ให้ลองดึง token จาก URL ก่อน
+    // ค่อยสร้างใหม่ถ้าไม่มีจริง ๆ
+    if (!t && TESTER_MODE) t = urlParams.get("t");
+    if (!t) {
+        t = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : (Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
+    }
+    ww_store.setItem("ww_token", t);
+    if (TESTER_MODE) {
+        // เก็บ token ไว้ใน URL ของแท็บด้วย — URL อยู่รอดผ่านการที่เบราว์เซอร์ discard/รีโหลดแท็บ
+        // ได้น่าเชื่อถือกว่า sessionStorage มาก จึงใช้เป็น fallback ที่สอง
+        const u = new URL(window.location.href);
+        u.searchParams.set("tester", "1");
+        u.searchParams.set("t", t);
+        history.replaceState(null, "", u.toString());
+    }
+    return t;
+}
+const clientToken = getClientToken();
+
+// เติมชื่อ/โค้ดห้องล่าสุดที่เคยกรอกไว้ ให้อัตโนมัติทันทีที่เปิดหน้า
+(function restoreLastSession() {
+    const savedName = ww_store.getItem("ww_playerName");
+    const savedRoom = ww_store.getItem("ww_lastRoom");
+    if (savedName) document.getElementById("name").value = savedName;
+    if (savedRoom) document.getElementById("room").value = savedRoom;
+})();
+
+// AUTO-REJOIN ตอนเปิดหน้าใหม่ทั้งหน้า (ไม่ใช่แค่ socket reconnect กลางอากาศ)
+// เคสนี้เกิดบ่อยบนมือถือ: สลับแอป/จอ แล้วเบราว์เซอร์ discard แท็บคืน RAM ทำให้ JS
+// ทั้งหมดรีสตาร์ทใหม่ (joined/currentRoomId ที่เป็นแค่ตัวแปรในหน่วยความจำหายไปด้วย)
+// เดิม flow จะกลับไปอยู่หน้ากรอกห้อง ต้องกดเข้าร่วมเองใหม่ทุกครั้ง — ใช้ ww_joinedRoom
+// ที่บันทึกไว้ตอน join สำเร็จ มาเข้าห้องเดิมให้อัตโนมัติแทน (token เดิมทำให้ server รู้ว่าคนเดิม)
+const ww_autoRejoinRoom = ww_store.getItem("ww_joinedRoom")
+    || (TESTER_MODE ? urlParams.get("jr") : null);
+if (ww_autoRejoinRoom) {
+    socket.emit(
+        "join_room",
+        {
+            roomId: ww_autoRejoinRoom,
+            name: ww_store.getItem("ww_playerName") || "",
+            token: clientToken
+        },
+        (res) => {
+            if (!res || res.error) {
+                ww_store.removeItem("ww_joinedRoom");
+                return; // ห้องถูกปิดไปแล้วจริง — ปล่อยให้อยู่หน้ากรอกห้องตามปกติ
+            }
+            joined = true;
+            currentRoomId = ww_autoRejoinRoom;
+            renderRoomSuggestion();
+            document.getElementById("joinCard").classList.add("hidden");
+            document.getElementById("playersCard").classList.remove("hidden");
+            document.getElementById("chatCard").classList.remove("hidden");
+            document.getElementById("bottomBar").classList.remove("hidden");
+            document.getElementById("bottomBar").classList.add("bar-visible");
+            document.querySelector('.app').classList.add("game-visible");
+        }
+    );
+}
+
+// แสดง/ซ่อนการ์ดแนะนำ ROOM CODE
+function renderRoomSuggestion() {
+    const box = document.getElementById("roomSuggestion");
+    if (!box) return;
+
+    if (joined || !suggestedRoomData) {
+        box.classList.add("hidden");
+        return;
+    }
+
+    document.getElementById("roomSuggestionCode").textContent = suggestedRoomData.roomId;
+
+    const hostEl = document.getElementById("roomSuggestionHost");
+    hostEl.textContent = suggestedRoomData.hostName
+        ? `โฮสต์: ${suggestedRoomData.hostName}${suggestedRoomData.started ? " (เริ่มเกมแล้ว)" : ""}`
+        : (suggestedRoomData.started ? "เริ่มเกมแล้ว" : "");
+
+    // ถ้ามีห้องเดียว → ใส่โค้ดให้อัตโนมัติและซ่อนการ์ด (ไม่ต้องแตะ)
+    // ถ้ามีหลายห้อง → แสดงการ์ดให้แตะเลือกเอง
+    const isSingleRoom = !suggestedRoomData.totalRooms || suggestedRoomData.totalRooms === 1;
+    if (isSingleRoom) {
+        useSuggestedRoom();
+        box.classList.add("hidden");
+        return;
+    }
+
+    // หลายห้อง: อัปเดต hint ให้รู้ว่าต้องแตะ
+    const tapEl = box.querySelector(".room-suggestion-tap");
+    if (tapEl) tapEl.textContent = "แตะเพื่อใส่อัตโนมัติ";
+
+    box.classList.remove("hidden");
+}
+
+// แตะการ์ดแนะนำ → ใส่โค้ดห้องให้อัตโนมัติ
+function useSuggestedRoom() {
+    if (!suggestedRoomData) return;
+    document.getElementById("room").value = suggestedRoomData.roomId;
+    document.getElementById("name").focus();
+}
+
+// รับห้องที่เปิดอยู่ล่าสุดจากเซิร์ฟเวอร์ (กรณีเล่นกับเพื่อนกลุ่มเดียว มีห้องเดียว → auto-fill)
+socket.on("suggested_room", (data) => {
+    suggestedRoomData = data;
+    renderRoomSuggestion();
+});
+
+// SWITCH CHAT TAB
+let playerBadgeCounts = { global: 0, wolf: 0 };
+
+function switchChatTab(tab) {
+
+    currentChatTab = tab;
+
+    document.getElementById("tabGlobal").classList.toggle("active", tab === "global");
+    document.getElementById("tabWolf").classList.toggle("active", tab === "wolf");
+
+    document.getElementById("chatBoxGlobal").classList.toggle("hidden", tab !== "global");
+    document.getElementById("chatBoxWolf").classList.toggle("hidden", tab !== "wolf");
+
+    // reset badge for active tab
+    playerBadgeCounts[tab] = 0;
+    const badgeEl = document.getElementById(tab === "global" ? "badgeGlobal" : "badgeWolf");
+    badgeEl.textContent = "0";
+    badgeEl.classList.add("zero");
+
+    // scroll to bottom
+    const box = document.getElementById(tab === "global" ? "chatBoxGlobal" : "chatBoxWolf");
+    box.scrollTop = box.scrollHeight;
+
+    // อัปเดต night notice ตามแท็บที่เลือก
+    const nightNotice = document.getElementById("nightNotice");
+    if (nightNotice) {
+        if (isNight && tab === "global") nightNotice.classList.add("visible");
+        else nightNotice.classList.remove("visible");
+    }
+    // อัปเดต placeholder
+    const chatInputEl = document.getElementById("chatInput");
+    if (chatInputEl && !mySilenced) {
+        chatInputEl.placeholder = (isNight && tab === "global")
+            ? "พิมพ์ข้อความ... (ส่งไม่ได้ช่วงกลางคืน)"
+            : "พิมพ์ข้อความ...";
+    }
+
+}
+
+// getRoleIcon ดึง icon จาก allRolesData ที่ server ส่งมา (single source of truth)
+function getRoleIcon(role) {
+    const src = (allRolesData[role] && allRolesData[role].icon) || "/images/default-role.jpg";
+    return `<img src="${src}" alt="${role}">`;
+}
+let allRolesData = {};   // จาก roles_data event
+let openRoleDescKeys = new Set(); // เก็บว่าใบไหนกำลังเปิดคำอธิบายอยู่ (คงสถานะไว้ตอน re-render)
+let lastRoomData = null; // เก็บ roomData ล่าสุดเพื่อ re-render กริดหลังรับบท
+
+// พรีโหลดรูปไอคอนอาชีพทั้งหมดล่วงหน้า (โหลดแอบไว้ใน cache ของเบราว์เซอร์)
+// เพื่อกันรูปกระตุก/เด้งช้าเวลาที่ต้องโผล่ขึ้นมาจริงๆ (เปิดดูบท, เปิดคำอธิบายอาชีพ ฯลฯ)
+const preloadedIcons = new Set();
+function preloadRoleImages(rolesData) {
+    Object.values(rolesData || {}).forEach((info) => {
+        const src = info && info.icon;
+        if (!src || preloadedIcons.has(src)) return;
+        preloadedIcons.add(src);
+        const img = new Image();
+        img.src = src;
+    });
+}
+// wolfRoles และ allWolfRoles จะถูก populate จาก roles_data event ที่ server ส่งมา
+// (server เก็บ __wolfRoles ไว้ใน buildRolesData()) ไม่ต้อง hardcode ที่นี่
+let wolfRoles = new Set([
+    "หมาป่า", "ลูกหมาป่า", "หมาป่าพิทักษ์", "หมาป่าดื้อรั้น", "หมาป่านักเวท"
+]);
+// allWolfRoles ใช้ชื่อเดิมเพื่อ backward compat กับโค้ดที่ใช้ .includes()
+let allWolfRoles = [...wolfRoles];
+
+function castVote(targetId) {
+    if (!currentRoomId) return;
+    socket.emit("cast_vote", { roomId: currentRoomId, targetId });
+}
+
+function castWolfKill(targetId) {
+    if (!currentRoomId) return;
+    socket.emit("cast_wolf_kill", { roomId: currentRoomId, targetId });
+}
+
+function castMurdererKill(targetId) {
+    if (!currentRoomId) return;
+    socket.emit("cast_murderer_kill", { roomId: currentRoomId, targetId });
+}
+
+// หมาป่าพิทักษ์: วาง/ยกเลิกโล่ป้องกันการประหาร
+function castShield(targetId) {
+    if (!currentRoomId) return;
+    socket.emit("select_shield", { roomId: currentRoomId, targetId });
+}
+
+// สลับโหมด "กำลังจะวางโล่" — เมื่อเปิดอยู่ การแตะชื่อผู้เล่นในกริดจะวางโล่แทนที่จะโหวต
+function toggleShieldMode() {
+    const btn = document.getElementById("shieldBtn");
+    if (btn.classList.contains("depleted")) return;
+    shieldModeActive = !shieldModeActive;
+    btn.classList.toggle("active", shieldModeActive);
+    if (lastRoomData) renderPlayerGrid(lastRoomData);
+}
+
+function openRolePopup() {
+    document.getElementById("rolePopup").classList.remove("hidden");
+    document.getElementById("rolePopupOverlay").classList.remove("hidden");
+    document.body.classList.add("vote-open");
+}
+
+function closeRolePopup() {
+    document.getElementById("rolePopup").classList.add("hidden");
+    document.getElementById("rolePopupOverlay").classList.add("hidden");
+    document.body.classList.remove("vote-open");
+}
+
+// เปิด/ปิด คำอธิบายอาชีพอื่น ในลิสต์ "บทในเกมรอบนี้"
+function toggleRoleDesc(btn, key) {
+    const panel = document.getElementById("rd_" + key);
+    if (!panel) return;
+
+    const willOpen = panel.classList.contains("hidden");
+
+    if (willOpen) {
+        panel.classList.remove("hidden");
+        btn.classList.add("open");
+        openRoleDescKeys.add(key);
+    } else {
+        panel.classList.add("hidden");
+        btn.classList.remove("open");
+        openRoleDescKeys.delete(key);
+    }
+}
+
+// JOIN ROOM
+function join() {
+
+    const playerName =
+        document.getElementById("name")
+        .value
+        .trim();
+
+    const roomCode =
+        document.getElementById("room")
+        .value
+        .trim()
+        .toUpperCase();
+
+    if (!playerName) {
+
+        wwAlert("กรอกชื่อก่อน");
+        return;
+
+    }
+
+    if (!roomCode) {
+
+        wwAlert("กรอก ROOM CODE");
+        return;
+
+    }
+
+    // จำชื่อ + โค้ดห้องไว้ในเครื่อง เพื่อ auto-fill ให้ครั้งหน้า
+    ww_store.setItem("ww_playerName", playerName);
+    ww_store.setItem("ww_lastRoom", roomCode);
+
+    socket.emit(
+        "join_room",
+        {
+            roomId: roomCode,
+            name: playerName,
+            token: clientToken
+        },
+
+        (res) => {
+
+            if (res.error) {
+
+                wwAlert(
+                    "ไม่พบห้อง"
+                );
+
+                return;
+
+            }
+
+            joined = true;
+            currentRoomId = roomCode;
+            // จำว่า "กำลังอยู่ในห้องนี้จริง" ไว้ในเครื่องด้วย (ไม่ใช่แค่ autofill ชื่อ/โค้ด)
+            // เพื่อให้ auto-rejoin ได้เองถ้าแท็บถูกรีโหลดทั้งหน้า (ไม่ใช่แค่ socket หลุด)
+            // ซึ่งเกิดได้บ่อยตอนสลับแอป/จอบนมือถือ แล้วเบราว์เซอร์ discard แท็บคืน RAM
+            ww_store.setItem("ww_joinedRoom", roomCode);
+            if (TESTER_MODE) {
+                const u = new URL(window.location.href);
+                u.searchParams.set("jr", roomCode);
+                history.replaceState(null, "", u.toString());
+            }
+            renderRoomSuggestion();
+
+            // สลับหน้าทันที
+            document.getElementById("joinCard").classList.add("hidden");
+            document.getElementById("playersCard").classList.remove("hidden");
+            document.getElementById("chatCard").classList.remove("hidden");
+            document.getElementById("bottomBar").classList.remove("hidden");
+            document.getElementById("bottomBar").classList.add("bar-visible");
+            document.querySelector('.app').classList.add("game-visible");
+
+        }
+    );
+
+}
+
+// ===== ROLE REVEAL ANIMATION =====
+
+const ALL_ROLE_NAMES = [
+    "ชาวบ้าน","หมอ","บอดี้การ์ด","ศาลเตี้ย","แม่มด","ผู้มีลาง","ยายแก่","ผู้ถูกสาป","นักกล้าม",
+    "หมาป่า","ลูกหมาป่า","หมาป่าพิทักษ์","หมาป่าดื้อรั้น","หมาป่านักเวท",
+    "คนบ้า","นักล่าหัว","ฆาตกร"
+];
+
+function spawnRevealStars() {
+    const container = document.getElementById("revealStars");
+    container.innerHTML = "";
+    for (let i = 0; i < 18; i++) {
+        const s = document.createElement("div");
+        s.className = "reveal-star";
+        const angle = Math.random() * 360;
+        const dist = 80 + Math.random() * 160;
+        const tx = Math.cos(angle * Math.PI/180) * dist + "px";
+        const ty = Math.sin(angle * Math.PI/180) * dist + "px";
+        s.style.cssText = `
+            left:${20+Math.random()*60}%;
+            top:${20+Math.random()*60}%;
+            --tx:${tx};
+            --ty:${ty};
+            animation:starPop ${.6+Math.random()*.8}s ease both ${.4+Math.random()*.4}s;
+        `;
+        container.appendChild(s);
+    }
+}
+
+function playRoleReveal(roleData) {
+    const overlay = document.getElementById("roleRevealOverlay");
+    const slotText = document.getElementById("revealSlotText");
+    const revealDesc = document.getElementById("revealDesc");
+    const huntBox = document.getElementById("revealHuntBox");
+    const huntNameText = document.getElementById("revealHuntNameText");
+
+    // reset
+    overlay.classList.remove("hidden");
+    overlay.style.animation = "revealFadeIn .4s ease both";
+    slotText.className = "";
+    slotText.textContent = "—";
+    revealDesc.style.opacity = "0";
+    huntBox.classList.remove("visible");
+
+    spawnRevealStars();
+
+    // ดึงบทที่เป็นไปได้จาก config ห้อง (ถ้ามี) หรือใช้ทั้งหมด
+    let pool = [...ALL_ROLE_NAMES];
+
+    // Phase 1: สุ่มหมุน slot (700ms)
+    let spinCount = 0;
+    const totalSpins = 18;
+    const spinInterval = setInterval(() => {
+        const r = pool[Math.floor(Math.random() * pool.length)];
+        slotText.textContent = r;
+        slotText.className = "slot-spinning";
+        spinCount++;
+        if (spinCount >= totalSpins) {
+            clearInterval(spinInterval);
+
+            // Phase 2: แสดงบทจริง
+            setTimeout(() => {
+                slotText.textContent = roleData.displayRole || roleData.role;
+                slotText.className = "slot-final";
+                spawnRevealStars();
+
+                // แสดง desc
+                setTimeout(() => {
+                    if (roleData.roleInfo) {
+                        revealDesc.innerHTML = roleData.roleInfo.desc
+                            ? roleData.roleInfo.desc.replace(/  ลาง.*/,"")
+                            : "";
+                    }
+                    revealDesc.style.animation = "revealSlideDown .45s ease both";
+                    revealDesc.style.opacity = "1";
+
+                    // Phase 3: ถ้าเป็นนักล่าหัว → แสดง hunt target พร้อม crosshair (พร้อมกับ desc)
+                    if (roleData.huntTarget) {
+                        huntNameText.textContent = roleData.huntTarget;
+                        huntBox.classList.add("visible");
+                        huntBox.style.animation = "revealSlideDown .5s cubic-bezier(.34,1.56,.64,1) both";
+                    }
+
+                    // Phase 4: fade out overlay ทุกบทใช้เวลาเท่ากัน
+                    setTimeout(() => {
+                        overlay.style.animation = "revealFadeOut .7s ease both";
+                        setTimeout(() => {
+                            overlay.classList.add("hidden");
+                            overlay.style.animation = "";
+                        }, 700);
+                    }, 3200);
+
+                }, 300);
+            }, 80);
+        }
+    }, 80);
+}
+
+// ROLE RECEIVE
+socket.on(
+    "your_role",
+    (data) => {
+
+    // เล่นอนิเมชั่นเปิดเผยบท (ข้ามถ้าเป็นการส่งซ้ำแบบ "เงียบ" ตอนเชื่อมต่อใหม่ ไม่ใช่ได้บทครั้งแรก)
+    // ถ้าตอนนี้ไม่ได้อยู่หน้าจอ (สลับแอป/ปิดจอ) ให้ข้ามอนิเมชั่นไปเลย ไม่เล่นมัน เพราะ
+    // setTimeout/setInterval ที่ทยอยเล่นอนิเมชั่นจะถูกเบราว์เซอร์ throttle จนค้างกลางทาง
+    // ทำให้ overlay บังหน้าจอค้างอยู่จนกว่าจะเปิดแท็บกลับมาเอง (ดูเหมือน "บทต้องรอเปิดจอก่อนถึงโหลด")
+    // ข้อมูลบทจริง (myRole ฯลฯ) ด้านล่างจะถูกตั้งค่าทันทีอยู่แล้วไม่ว่าจะข้ามอนิเมชั่นหรือไม่
+    if (!data.silent) {
+        if (document.visibilityState === "visible") {
+            playRoleReveal(data);
+        } else {
+            document.getElementById("roleRevealOverlay").classList.add("hidden");
+        }
+    }
+
+myRole = data.role;
+myHuntTargetId = data.huntTargetId || null;
+
+    // อัปเดต bottom bar
+    document.getElementById("barRoleName").textContent = data.displayRole;
+    document.getElementById("barRoleSub").textContent = "แตะหน้ากากเพื่อดูรายละเอียด";
+
+    // ปุ่มโล่ (เฉพาะหมาป่าพิทักษ์) — แสดง/ซ่อนตามบท การอัปเดตจำนวนโล่จริงจะถูกซิงค์อีกทีจาก room_update
+    const shieldBtn = document.getElementById("shieldBtn");
+    if (data.role === "หมาป่าพิทักษ์") {
+        shieldBtn.classList.remove("hidden");
+        document.getElementById("shieldCount").textContent = data.guardianShieldAvailable ?? 1;
+        shieldBtn.classList.toggle("depleted", !(data.guardianShieldAvailable > 0));
+    } else {
+        shieldBtn.classList.add("hidden");
+        shieldModeActive = false;
+        shieldBtn.classList.remove("active");
+    }
+
+    // อัปเดต popup — ชื่อบท
+    document.getElementById("popupRoleName").textContent = data.displayRole;
+
+    // บทจริง (ถ้าสุ่ม)
+    const popupRealRole = document.getElementById("popupRealRole");
+    if (data.displayRole !== data.role) {
+        popupRealRole.classList.remove("hidden");
+        popupRealRole.innerHTML = `บทจริง: <b>${data.role}</b>`;
+    } else {
+        popupRealRole.classList.add("hidden");
+    }
+
+    // เป้าหมายล่า
+    const popupHuntInfo = document.getElementById("popupHuntInfo");
+    const barHuntBadge = document.getElementById("barHuntBadge");
+    if (data.huntTarget) {
+        popupHuntInfo.classList.remove("hidden");
+        popupHuntInfo.innerHTML = `🎯 เป้าหมาย: <b>${data.huntTarget}</b>`;
+        barHuntBadge.classList.remove("hidden");
+        barHuntBadge.textContent = `🎯 ${data.huntTarget}`;
+    } else {
+        popupHuntInfo.classList.add("hidden");
+        barHuntBadge.classList.add("hidden");
+    }
+
+    // คำอธิบายบท
+    const popupRoleDesc = document.getElementById("popupRoleDesc");
+    if (data.roleInfo) {
+        const rawTitle = data.roleInfo.title || data.displayRole;
+        const cleanTitle = rawTitle.replace(/<img[^>]*>/gi, "").trim() || data.displayRole;
+        const icon = data.roleInfo.icon || "/images/default-role.jpg";
+        popupRoleDesc.innerHTML = `
+            <div class="role-desc-flex">
+                <img class="role-desc-img big" src="${icon}" alt="${cleanTitle}" onerror="this.style.display='none'">
+                <div class="role-desc-body">
+                    <h3>${cleanTitle}</h3>
+                    <div class="small">${data.roleInfo.desc}</div>
+                </div>
+            </div>
+        `;
+    } else {
+        popupRoleDesc.innerHTML = "";
+    }
+
+    // แชทหมาป่า
+    const tabWolf = document.getElementById("tabWolf");
+    if (allWolfRoles.includes(data.role)) {
+        tabWolf.classList.remove("hidden");
+    } else {
+        tabWolf.classList.add("hidden");
+        if (currentChatTab === "wolf") {
+            switchChatTab("global");
+        }
+    }
+
+    // Re-render กริดผู้เล่นทันที เพื่อให้ hunt-target badge ขึ้นถูกที่
+    // (room_update มาก่อน your_role ดังนั้นต้อง render ใหม่หลังได้รับบท)
+    if (lastRoomData) {
+        renderPlayerGrid(lastRoomData);
+    }
+
+});
+
+// ROLES DATA — sync wolfRoles จาก server เพื่อให้ตรงเสมอแม้เพิ่มบทใหม่
+socket.on("roles_data", (data) => {
+    allRolesData = data;
+    preloadRoleImages(allRolesData);
+    // server ฝัง __wolfRoles ไว้ใน roles_data — ใช้ sync ฝั่ง client โดยไม่ต้อง hardcode
+    if (Array.isArray(data.__wolfRoles)) {
+        wolfRoles = new Set(data.__wolfRoles);
+        allWolfRoles = [...wolfRoles];
+    }
+});
+
+// แสดง roles ทั้งหมดในเกมรอบนี้
+function showGameInfo(roomData) {
+    const config = roomData.config || {};
+    const playerName = document.getElementById("name").value.trim() || "ผู้เล่น";
+    const roomCode = document.getElementById("room").value.trim().toUpperCase();
+
+    document.getElementById("gameRoomLabel").textContent = "ห้อง " + roomCode;
+    document.getElementById("gamePlayerName").textContent = playerName;
+
+    // จัดกลุ่ม: ขยาย random group → บทจริงที่ถูกใช้จาก players
+    const randomGroups = {
+        "สุ่มชาวบ้าน": ["ชาวบ้าน","หมอ","บอดี้การ์ด"],
+        "สุ่มชาวบ้านสนับสนุน": ["ศาลเตี้ย","แม่มด"],
+        "สุ่มหมาป่า": ["หมาป่า","ลูกหมาป่า","หมาป่าดื้อรั้น"],
+        "สุ่มหมาป่าสนับสนุน": ["หมาป่าพิทักษ์","หมาป่านักเวท"],
+        "สุ่มบทบาทการโหวต": ["คนบ้า","นักล่าหัว"],
+    };
+
+    // นับบทจริงจาก players ใน room
+    const realCounts = {};
+    (roomData.players || []).forEach(p => {
+        if (p.isHost || !p.role) return;
+        realCounts[p.role] = (realCounts[p.role] || 0) + 1;
+    });
+
+// ถ้ายังไม่มีบทจริง (เกมยังไม่เริ่มจริงๆ) ใช้ config แทน
+    const useReal = Object.keys(realCounts).length > 0;
+    const counts = useReal ? realCounts : (() => {
+        const c = {};
+        Object.entries(config).forEach(([role, n]) => {
+            if (randomGroups[role]) {
+                // สุ่ม → แสดงชื่อกลุ่ม
+                c[role] = n;
+            } else {
+                c[role] = (c[role] || 0) + n;
+            }
+        });
+        return c;
+    })();
+
+    // แยกทีม
+    const wolfTeam = {}, villagerTeam = {}, soloTeam = {};
+    // ใช้ allWolfRoles ที่ sync มาจาก server แทนการ hardcode
+    const soloRolesList = ["คนบ้า","นักล่าหัว","ฆาตกร"];
+
+    Object.entries(counts).forEach(([role, n]) => {
+        if (allWolfRoles.includes(role) || role.includes("สุ่มหมาป่า")) wolfTeam[role] = n;
+        else if (soloRolesList.includes(role) || role.includes("สุ่มบทบาทการโหวต")) soloTeam[role] = n;
+        else villagerTeam[role] = n;
+    });
+
+    // ดึงคำอธิบายอาชีพจาก allRolesData (รองรับหลายรูปแบบข้อมูลที่เซิร์ฟเวอร์อาจส่งมา)
+    function getRoleDescHtml(role) {
+        const info = allRolesData[role];
+        if (!info) {
+            return `<div class="role-desc-text">ยังไม่มีข้อมูลคำอธิบายอาชีพนี้</div>`;
+        }
+        if (typeof info === "string") {
+            return `<div class="role-desc-text">${info}</div>`;
+        }
+        const rawTitle = info.title || role;
+        // ชื่อบางอาชีพมี <img> ฝังอยู่ใน title อยู่แล้ว (เลี่ยงรูปซ้ำ) ตัดออกแล้วใช้แค่ข้อความ
+        const cleanTitle = rawTitle.replace(/<img[^>]*>/gi, "").trim() || role;
+        const desc = info.desc || info.description || "ยังไม่มีคำอธิบาย";
+        const icon = info.icon || "/images/default-role.jpg";
+        return `
+            <div class="role-desc-flex">
+                <img class="role-desc-img" src="${icon}" alt="${cleanTitle}" onerror="this.style.display='none'">
+                <div class="role-desc-body">
+                    <div class="role-desc-title">${cleanTitle}</div>
+                    <div class="role-desc-text">${desc}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function buildSection(label, map, cssClass) {
+        if (Object.keys(map).length === 0) return "";
+        const rows = Object.entries(map).map(([role, n], idx) => {
+
+            const isMine = role === myRole;
+            const key = `${cssClass}_${idx}`;
+            const isOpen = openRoleDescKeys.has(key);
+
+            const toggleBtn = `
+                <button type="button" class="role-toggle-btn${isOpen ? " open" : ""}" onclick="toggleRoleDesc(this,'${key}')" aria-label="ดูคำอธิบายอาชีพ ${role}">
+                    <span class="role-toggle-arrow">▶</span>
+                </button>`;
+
+            const descPanel = `
+                <div id="rd_${key}" class="role-desc-panel${isOpen ? "" : " hidden"}">
+                    ${getRoleDescHtml(role)}
+                </div>`;
+
+            return `
+                <div class="role-row-wrap">
+                    <div class="role-row ${cssClass}${isMine ? " mine-role" : ""}">
+                        <span class="role-row-left">
+                            ${toggleBtn}
+                            <span class="role-row-name">${role}${isMine ? ' <span class="mine-tag">(คุณ)</span>' : ""}</span>
+                        </span>
+                        <span class="role-row-count">${n} คน</span>
+                    </div>
+                    ${descPanel}
+                </div>`;
+        }).join("");
+        return `<div class="roles-section-label">${label}</div><div class="roles-list">${rows}</div>`;
+    }
+
+    document.getElementById("popupRolesInGame").innerHTML =
+        buildSection("🏘️ ฝ่ายชาวบ้าน", villagerTeam, "villager-role") +
+        buildSection("🐺 ฝ่ายหมาป่า", wolfTeam, "wolf-role") +
+        buildSection("⚡ โซโล", soloTeam, "solo-role");
+}
+
+// แยก render กริดผู้เล่นเป็น function เพื่อสามารถเรียกใหม่ได้หลังรับบท
+function renderPlayerGrid(roomData) {
+    const players = document.getElementById("players");
+    const me = socket.id;
+    const selected = roomData.selectedTargets?.[me];
+    const amIWolf = allWolfRoles.includes(myRole);
+    const others = roomData.players.filter(p => !p.isHost);
+
+    if (others.length === 0) {
+        players.innerHTML = `<div class="empty-note">รอผู้เล่นคนอื่นเข้าร่วมห้อง...</div>`;
+        players.classList.remove("mode-active");
+        updateModeBanner("normal", {});
+        return "normal";
+    }
+
+    // ถ้ามี empty-note ค้างอยู่ (ตอนยังไม่มีคนอื่น) ให้เคลียร์ก่อน sync ของจริง
+    if (players.querySelector(".empty-note")) {
+        players.innerHTML = "";
+    }
+
+    // ===== กำหนดโหมดปัจจุบันของกริด =====
+    // โหมดโหวต/โหมดหมาป่าเลือกฆ่า แสดงผล "ภายในกริดผู้เล่นเดิม" นี้เลย แทนที่จะแยกเป็นป๊อปอัป
+    // ลำดับความสำคัญ: โหมดโหวต > โหมดหมาป่าเลือกฆ่า (เฉพาะคนที่เป็นทีมหมาป่า) > โหมดปกติ (เลือกเป้าหมายความสามารถกลางคืน)
+    const voteMode = !!roomData.voteMode;
+    const amIMurderer = myRole === "ฆาตกร";
+    const killModeActive = !!(roomData.wolfKillMode && (amIWolf || amIMurderer));
+    const mode = voteMode ? "vote" : (killModeActive ? "kill" : "normal");
+
+    players.classList.toggle("mode-active", mode !== "normal");
+
+    // ข้อมูลโหวต (ใช้เมื่อ mode === "vote")
+    const votes = roomData.votes || {};
+    const myVoteTarget = votes[me];
+    const voteTally = {};
+    Object.values(votes).forEach(tid => { voteTally[tid] = (voteTally[tid] || 0) + 1; });
+    const voteTargetName = {};
+    Object.entries(votes).forEach(([vid, tid]) => {
+        const t = roomData.players.find(p => p.id === tid);
+        if (t) voteTargetName[vid] = t.name;
+    });
+    const aliveVotersCount = others.filter(p => p.alive).length;
+    const voteThreshold = Math.ceil(aliveVotersCount / 2);
+
+    // ข้อมูลโล่หมาป่าพิทักษ์ (ใช้เมื่อ mode === "vote")
+    const shieldTargets = roomData.shieldTargets || {};
+    const myShieldTarget = shieldTargets[me]; // ใช้กับตัวเองตอนเป็นหมาป่าพิทักษ์
+    const myPlayerObj = roomData.players.find(p => p.id === me);
+    const amIGuardianWolf = myPlayerObj && myPlayerObj.role === "หมาป่าพิทักษ์" && (myPlayerObj.guardianShieldAvailable > 0);
+    // playerId ที่กำลังถูกวางโล่อยู่ → ใช้แสดงไอคอนโล่ให้ทุกคนเห็นว่าใครกำลังถูกปกป้อง
+    const shieldedPlayerIds = new Set(Object.values(shieldTargets));
+
+    // ข้อมูลหมาป่าเลือกฆ่า (ใช้เมื่อ mode === "kill")
+    const killVotes = roomData.wolfKillVotes || {};
+    const murdererVote = roomData.murdererKillVote || null;
+    // myKillTarget: ถ้าเป็นฆาตกรใช้ murdererKillVote, ถ้าเป็นหมาป่าใช้ wolfKillVotes
+    const myKillTarget = amIMurderer
+        ? (murdererVote && murdererVote.voterId === me ? murdererVote.targetId : null)
+        : killVotes[me];
+    const killTargetName = {};
+    Object.entries(killVotes).forEach(([vid, tid]) => {
+        const t = roomData.players.find(p => p.id === tid);
+        if (t) killTargetName[vid] = t.name;
+    });
+
+    // อัปเดตแบนเนอร์โหมด (เหนือกริด) + สถานะของตัวเอง
+    updateModeBanner(mode, { aliveVotersCount, voteThreshold, myVoteTarget, myKillTarget, myShieldTarget, amIGuardianWolf, roomData });
+
+    // เก็บกล่องผู้เล่นที่มีอยู่แล้วไว้ใช้ซ้ำ แทนการรื้อสร้างใหม่ทั้งกริดทุกครั้งที่มีคนกดเลือกเป้าหมาย
+    // (กันรูป/การ์ดผู้เล่นที่ "ไม่ได้เปลี่ยน" กระตุกซ้ำ)
+    const existingNodes = {};
+    players.querySelectorAll(".player[data-pid]").forEach((node) => {
+        existingNodes[node.dataset.pid] = node;
+    });
+    const seenIds = new Set();
+
+    others.forEach((p, idx) => {
+        seenIds.add(p.id);
+
+        const isWolfMate = amIWolf && p.id !== me && allWolfRoles.includes(p.role);
+        const isMyHuntTarget = (myRole === "นักล่าหัว") && myHuntTargetId && (p.id === myHuntTargetId) && p.alive;
+        const isSelected = mode === "normal" && selected === p.id;
+        const isMyVote = mode === "vote" && !shieldModeActive && myVoteTarget === p.id;
+        const isMyKill = mode === "kill" && myKillTarget === p.id;
+        const isMurdererTarget = false; // ฆาตกรฆ่าใครก็ได้ยกเว้นตัวเอง
+        const isKillRestricted = mode === "kill" && (p.id === me || (!amIMurderer && isWolfMate));
+        const isMyShieldPick = mode === "vote" && shieldModeActive && myShieldTarget === p.id;
+        const isShielded = mode === "vote" && shieldedPlayerIds.has(p.id);
+
+        let div = existingNodes[p.id];
+        if (!div) {
+            div = document.createElement("div");
+            div.dataset.pid = p.id;
+        }
+
+        div.className = "player "
+            + (!p.alive ? "dead" : "")
+            + (isSelected ? " selected" : "")
+            + (isMyVote ? " my-target" : "")
+            + (isMyKill ? " my-kill-target" : "")
+            + (isKillRestricted ? " kill-restricted" : "")
+            + (isMyHuntTarget ? " hunt-target" : "")
+            + (isMyShieldPick ? " my-shield-target" : "")
+            + (p.disconnected ? " reconnecting" : "")
+            + (p.offline ? " offline" : "");
+
+        div.onclick = () => {
+            if (!myAlive) return;
+            if (!p.alive) return;
+            if (p.disconnected || p.offline) return;
+
+            if (mode === "vote" && shieldModeActive) {
+                if (myShieldTarget === p.id) { castShield(null); } else { castShield(p.id); }
+            } else if (mode === "vote") {
+                if (p.id === me) return; // ห้ามโหวตตัวเอง
+                if (myVoteTarget === p.id) { castVote(null); } else { castVote(p.id); }
+            } else if (mode === "kill") {
+                if (p.id === me) return; // ห้ามเลือกตัวเอง
+                if (isWolfMate) return; // ห้ามหมาป่าเลือกฆ่ากันเอง
+                if (amIMurderer) {
+                    if (myKillTarget === p.id) { castMurdererKill(null); } else { castMurdererKill(p.id); }
+                } else {
+                    if (myKillTarget === p.id) { castWolfKill(null); } else { castWolfKill(p.id); }
+                }
+            } else {
+                if (selected === p.id) { selectTarget(null); } else { selectTarget(p.id); }
+            }
+        };
+
+        const dotClass = !p.alive ? "dot-dead" : p.offline ? "dot-offline" : p.disconnected ? "dot-reconnecting" : "dot-alive";
+        const dotTitle = !p.alive ? "ตายแล้ว" : p.offline ? "ออฟไลน์" : p.disconnected ? "กำลังเชื่อมต่อใหม่..." : "มีชีวิต";
+
+        // ===== ส่วนเสริมตามโหมด: badge จำนวนโหวต/จำนวนถูกเลือกฆ่า + ใครเลือกใคร =====
+        let modeExtraHtml = "";
+        if (mode === "vote") {
+            const receivedCount = voteTally[p.id] || 0;
+            const reached = voteThreshold > 0 && receivedCount >= voteThreshold;
+            const votedFor = voteTargetName[p.id] || null;
+            // โล่: แสดงเฉพาะให้หมาป่าพิทักษ์เห็นว่าตัวเองวางโล่ถูกคน (คนอื่นไม่เห็น กันข้อมูลรั่ว)
+            const showShieldIcon = (myRole === "หมาป่าพิทักษ์") && isShielded;
+            modeExtraHtml = `
+                ${receivedCount > 0 ? `<span class="vote-count-badge${reached ? " reached" : ""}">${receivedCount} โหวต${reached ? " ☠️" : ""}</span>` : ""}
+                ${votedFor ? `<div class="vote-voter-list">➜ ${votedFor}</div>` : ""}
+                ${showShieldIcon ? `<span class="shield-placed-badge" title="คุณวางโล่ป้องกันคนนี้ไว้">🛡️</span>` : ""}
+            `;
+        } else if (mode === "kill") {
+            const killedFor = !amIMurderer ? (killTargetName[p.id] || null) : null;
+            modeExtraHtml = `
+                ${(isWolfMate && !amIMurderer) ? `<div class="vote-voter-list" style="color:var(--wolf);">ห้ามเลือก</div>` : ""}
+                ${killedFor ? `<div class="vote-voter-list">➜ ${killedFor}</div>` : ""}
+            `;
+        }
+
+        const newInnerHTML = `
+            <div class="pname" style="${p.id === me ? "color:#facc15;font-weight:700;" : ""}">
+                ${isMyHuntTarget ? `<span style="font-size:14px;line-height:1;" title="เป้าหมายของคุณ">🎯</span> ` : ""}${p.name}<span class="status-dot ${dotClass}" title="${dotTitle}"></span>
+                ${isWolfMate ? `<span style="display:block;margin-top:2px;font-size:9px;line-height:1.3;color:var(--wolf);font-weight:600;background:var(--wolf-soft);padding:1px 4px;border-radius:5px;border:1px solid rgba(239,68,68,.3);white-space:nowrap;">🐺 ${p.role}</span>` : ""}
+            </div>
+            ${(() => {
+                const showRole = (myRole && p.id === me) || isWolfMate;
+                const showSilenced = p.silenced && p.alive;
+                const roleLabel = p.id === me ? myRole : p.role;
+                const roleShift = showRole && showSilenced ? "right:27px;" : "";
+                const roleHtml = showRole
+                    ? `<div class="player-role-icon" title="${roleLabel}" style="${roleShift}">${getRoleIcon(roleLabel)}</div>`
+                    : "";
+                const silencedHtml = showSilenced
+                    ? `<div class="player-silenced-icon" title="ถูกใบ้"><img src="/images/silenced.jpg" alt="🤐"></div>`
+                    : "";
+                return roleHtml + silencedHtml;
+            })()}
+            ${modeExtraHtml}
+        `;
+        // อัปเดตเนื้อหาเฉพาะตอนที่เปลี่ยนจริงๆ เพื่อไม่ให้รูปไอคอนต้องสร้าง/โหลดใหม่ทุกครั้ง
+        if (div.innerHTML !== newInnerHTML) {
+            div.innerHTML = newInnerHTML;
+        }
+
+        // จัดลำดับให้ตรงกับลำดับผู้เล่นจริง (เผื่อมีคนเข้าร่วมห้องเพิ่มระหว่างทาง)
+        if (players.children[idx] !== div) {
+            players.insertBefore(div, players.children[idx] || null);
+        }
+    });
+
+    // ลบกล่องของผู้เล่นที่ไม่อยู่ในห้องแล้ว (หลุดห้อง/ตัดการเชื่อมต่อ)
+    Object.keys(existingNodes).forEach((pid) => {
+        if (!seenIds.has(pid)) {
+            existingNodes[pid].remove();
+        }
+    });
+
+    return mode;
+}
+
+// อัปเดตแบนเนอร์โหมด (เหนือกริดผู้เล่น) — แสดงว่ากำลังอยู่โหมดอะไร ต้องทำอะไร และสถานะของตัวเอง
+// แทนที่ป๊อปอัปแยกเดิม โดยอยู่ในหน้าเดียวกับกริดผู้เล่นเลย
+function updateModeBanner(mode, ctx) {
+    const banner = document.getElementById("modeBanner");
+    const sub = document.getElementById("playersSub");
+    if (!banner) return;
+
+    if (mode === "normal") {
+        banner.classList.add("hidden");
+        if (sub) sub.textContent = "";
+        return;
+    }
+
+    banner.classList.remove("hidden");
+    const icon = document.getElementById("modeBannerIcon");
+    const text = document.getElementById("modeBannerText");
+    const subText = document.getElementById("modeBannerSub");
+    const thresholdText = document.getElementById("modeBannerThreshold");
+    const myStatusText = document.getElementById("modeBannerMyStatus");
+
+    if (mode === "vote") {
+        banner.classList.remove("kill-banner");
+        if (sub) sub.textContent = "";
+
+        if (shieldModeActive) {
+            icon.textContent = "🛡️";
+            text.textContent = "โหมดวางโล่ — เลือกคนที่จะปกป้อง";
+            text.style.color = "#38bdf8";
+            subText.textContent = "ถ้าคนนี้โดนประหาร จะรอดและคุณเสียโล่";
+            thresholdText.textContent = "";
+
+            if (!myAlive) {
+                myStatusText.innerHTML = `<span style="color:var(--wolf)">💀 คุณตายแล้ว</span>`;
+            } else if (ctx.myShieldTarget) {
+                const st = ctx.roomData.players.find(p => p.id === ctx.myShieldTarget);
+                const isSelf = ctx.myShieldTarget === socket.id;
+                myStatusText.innerHTML = `🛡️ คุณวางโล่: <b>${isSelf ? "ตัวเอง" : (st?.name || "?")}</b> — แตะอีกครั้งเพื่อยกเลิก`;
+            } else {
+                myStatusText.textContent = "แตะชื่อเพื่อวางโล่ป้องกัน (วางใส่ตัวเองก็ได้)";
+            }
+        } else {
+            icon.textContent = "🗳️";
+            text.textContent = "ช่วงโหวต";
+            text.style.color = "var(--safe)";
+            subText.textContent = "";
+            thresholdText.textContent = ctx.aliveVotersCount > 0
+                ? `ต้องการ ${ctx.voteThreshold} โหวต (จากผู้มีชีวิต ${ctx.aliveVotersCount} คน) เพื่อประหาร`
+                : "";
+
+            if (!myAlive) {
+                myStatusText.innerHTML = `<span style="color:var(--wolf)">💀 คุณตายแล้ว</span>`;
+            } else if (ctx.myVoteTarget) {
+                const vt = ctx.roomData.players.find(p => p.id === ctx.myVoteTarget);
+                myStatusText.innerHTML = `✅ คุณโหวต: <b>${vt?.name || "?"}</b> — แตะอีกครั้งเพื่อยกเลิก`;
+            } else {
+                myStatusText.textContent = "แตะชื่อเพื่อโหวต";
+            }
+        }
+    } else if (mode === "kill") {
+        banner.classList.add("kill-banner");
+        if (sub) sub.textContent = "";
+        const isMurdererMode = myRole === "ฆาตกร";
+        icon.textContent = isMurdererMode ? "🗡️" : "🐺";
+        text.textContent = isMurdererMode ? "ช่วงฆาตกรออกล่า" : "ช่วงล่าเหยื่อ";
+        text.style.color = isMurdererMode ? "#a78bfa" : "var(--wolf)";
+        subText.textContent = "เลือกผู้เล่นเพื่อฆ่า";
+        thresholdText.textContent = "";
+
+        if (!myAlive) {
+            myStatusText.innerHTML = `<span style="color:var(--wolf)">💀 คุณตายแล้ว</span>`;
+        } else if (ctx.myKillTarget) {
+            const kt = ctx.roomData.players.find(p => p.id === ctx.myKillTarget);
+            myStatusText.innerHTML = `🩸 คุณเลือก: <b>${kt?.name || "?"}</b> — แตะอีกครั้งเพื่อยกเลิก`;
+        } else {
+            myStatusText.textContent = "แตะชื่อเพื่อเลือกเหยื่อ";
+        }
+    }
+}
+
+// ROOM UPDATE
+socket.on("room_update", (roomData) => {
+
+    lastRoomData = roomData; // เก็บไว้ให้ your_role re-render กริดได้
+
+    // สลับ card เมื่อเกมเริ่ม
+    if (roomData.started) {
+        document.getElementById("joinCard").classList.add("hidden");
+        document.querySelector('.app').classList.add("game-visible");
+        document.querySelector('.app').classList.add("game-started");
+        document.getElementById("playersCard").classList.remove("hidden");
+        document.getElementById("chatCard").classList.remove("hidden");
+        document.getElementById("bottomBar").classList.remove("hidden");
+        document.getElementById("bottomBar").classList.add("bar-visible");
+    } else if (!joined) {
+        // ยังไม่ได้ join → แสดง joinCard ตามปกติ
+        document.getElementById("joinCard").classList.remove("hidden");
+        document.querySelector('.app').classList.remove("game-visible");
+        document.querySelector('.app').classList.remove("game-started");
+        document.getElementById("bottomBar").classList.remove("bar-visible");
+    }
+
+    // อัปเดตลิสต์ "บทในเกมรอบนี้" ทุกครั้งที่ห้องมีการเปลี่ยนแปลง
+    // ไม่ต้องรอให้เกมเริ่ม เพื่อให้เห็นจำนวนอาชีพที่โฮสต์เพิ่ม/ลดแบบเรียลไทม์ตั้งแต่ตอนรอในห้อง
+    showGameInfo(roomData);
+
+    // ถ้าเพิ่งเริ่มเกมใหม่ → ล้างแชทเก่า
+    if (roomData.started && roomData.justStarted) {
+        document.getElementById("chatBoxGlobal").innerHTML = "";
+        document.getElementById("chatBoxWolf").innerHTML = "";
+        myHuntTargetId = null;
+        openRoleDescKeys = new Set();
+        // reset unread badges
+        playerBadgeCounts = { global: 0, wolf: 0 };
+        document.getElementById("badgeGlobal").textContent = "0";
+        document.getElementById("badgeGlobal").classList.add("zero");
+        document.getElementById("badgeWolf").textContent = "0";
+        document.getElementById("badgeWolf").classList.add("zero");
+    }
+
+    const me = socket.id;
+
+    // อัพเดทสถานะมีชีวิตของตัวเอง
+    const myPlayer = roomData.players.find(p => p.id === me);
+    if (myPlayer) {
+        myAlive = myPlayer.alive;
+        mySilenced = !!myPlayer.silenced;
+
+        // ซิงค์จำนวนโล่ที่เหลือของหมาป่าพิทักษ์ (ลดลงเมื่อใช้สำเร็จ)
+        if (myPlayer.role === "หมาป่าพิทักษ์") {
+            const shieldBtn = document.getElementById("shieldBtn");
+            const available = myPlayer.guardianShieldAvailable ?? 0;
+            document.getElementById("shieldCount").textContent = available;
+            shieldBtn.classList.remove("hidden");
+            const depleted = !(available > 0) || !myAlive || !roomData.voteMode;
+            shieldBtn.classList.toggle("depleted", depleted);
+            if (depleted && shieldModeActive) {
+                shieldModeActive = false;
+                shieldBtn.classList.remove("active");
+            }
+        }
+    }
+
+    // อัปเดตสถานะกลางคืน
+    isNight = !!roomData.isNight;
+
+    // อัปเดต UI โดนใบ้ + กลางคืน
+    const silencedNotice = document.getElementById("silencedNotice");
+    const nightNotice = document.getElementById("nightNotice");
+    const chatInputEl = document.getElementById("chatInput");
+    const chatSendBtn = document.querySelector(".sendBtn");
+    if (silencedNotice) {
+        if (mySilenced) {
+            silencedNotice.classList.add("visible");
+            if (chatInputEl) { chatInputEl.disabled = true; chatInputEl.placeholder = "🤐 ถูกใบ้ — พิมพ์ไม่ได้"; }
+            if (chatSendBtn) { chatSendBtn.disabled = true; chatSendBtn.textContent = "🤐"; }
+        } else {
+            silencedNotice.classList.remove("visible");
+            if (chatInputEl) {
+                chatInputEl.disabled = false;
+                chatInputEl.placeholder = isNight ? "พิมพ์ข้อความ... (ส่งไม่ได้ช่วงกลางคืน)" : "พิมพ์ข้อความ...";
+            }
+            if (chatSendBtn) { chatSendBtn.disabled = false; chatSendBtn.textContent = "ส่ง"; }
+        }
+    }
+    // แสดง/ซ่อน notice กลางคืน
+    if (nightNotice) {
+        if (isNight && currentChatTab === "global") {
+            nightNotice.classList.add("visible");
+        } else {
+            nightNotice.classList.remove("visible");
+        }
+    }
+
+    // render กริดผู้เล่น — รวมโหมดโหวต/โหมดหมาป่าเลือกฆ่าไว้ในกริดเดียวกันนี้เลย (renderPlayerGrid คืนค่าโหมดปัจจุบันกลับมา)
+    const mode = renderPlayerGrid(roomData);
+
+    // แสดงสถานะการเลือก (select_target ปกติ) — แสดงเฉพาะตอนอยู่โหมดปกติเท่านั้น
+    // เพราะตอนอยู่โหมดโหวต/โหมดหมาป่าเลือกฆ่า สถานะของตัวเองจะถูกแสดงในแบนเนอร์เหนือกริดแทนแล้ว
+    const info = document.getElementById("selectInfo");
+    const selected = roomData.selectedTargets?.[me];
+
+    if (mode !== "normal") {
+        info.innerHTML = "";
+    } else if (!myAlive) {
+        info.innerHTML = `<span style="color:var(--wolf)">💀 คุณตายแล้ว — ไม่สามารถโหวตได้</span>`;
+    } else if (selected) {
+        const target = roomData.players.find(p => p.id === selected);
+        info.innerHTML = `📍 กำลังเลือก: <b>${target?.name || "?"}</b>`;
+    } else {
+        info.innerHTML = "";
+    }
+
+    // ===== GAME OVER SUMMARY =====
+    if (roomData.gameOver && roomData.gameResult) {
+        // fallback: ถ้า socket.id ใหม่หลัง reconnect หา myPlayer ไม่เจอ ให้ลองหาจาก token
+        const myPlayerForResult = myPlayer
+            || (roomData.players || []).find(p => p.token === clientToken);
+        showGameOverOverlay(roomData, myPlayerForResult);
+    } else {
+        hideGameOverOverlay();
+    }
+
+});
+
+// แสดงสรุปผลเกม (แพ้/ชนะ ตามทีมของบทตัวเอง) + ปุ่ม "ดำเนินการต่อ" ที่กดอัตโนมัติใน 5 วิ
+// ถ้าไม่กด (กันคนเกรียนค้างหน้าจอไว้ไม่กด ทำให้ห้องเริ่มเกมใหม่ไม่ได้)
+function showGameOverOverlay(roomData, myPlayer) {
+    const overlay = document.getElementById("gameOverOverlay");
+    if (!overlay) return;
+
+    const result = roomData.gameResult;
+    // server ส่ง winners เป็น array ของ {id, token} — ตรวจด้วย token (ยังใช้ได้แม้ socket id เปลี่ยน)
+    const winners = new Set((result.winners || []).map(w => w.token ?? w));
+    const won = myPlayer ? winners.has(myPlayer.token) : false;
+
+    const resultEl = document.getElementById("gameOverResult");
+    resultEl.textContent = won ? "ชนะ" : "แพ้";
+    resultEl.className = "gameover-result " + (won ? "win" : "lose");
+
+    document.getElementById("gameOverIcon").textContent = won ? "🏆" : "💀";
+    document.getElementById("gameOverTitleLine").textContent = result.title;
+
+    const roleNameEl = document.getElementById("gameOverRoleName");
+    const roleIconEl = document.getElementById("gameOverRoleIcon");
+    if (myPlayer && myPlayer.role) {
+        roleNameEl.textContent = `บทของคุณ: ${myPlayer.role}`;
+        const src = (allRolesData[myPlayer.role] && allRolesData[myPlayer.role].icon) || "/images/default-role.jpg";
+        roleIconEl.src = src;
+        roleIconEl.classList.remove("hidden");
+    } else {
+        roleNameEl.textContent = "";
+        roleIconEl.classList.add("hidden");
+    }
+
+    overlay.classList.remove("hidden");
+
+    // อัปเดตจำนวนคนที่กด "ดำเนินการต่อ" แล้ว
+    const ready = roomData.continueReady || {};
+    const nonHostPlayers = (roomData.players || []).filter(p => !p.isHost);
+    const readyCount = nonHostPlayers.filter(p => ready[p.id]).length;
+    document.getElementById("gameOverReadyCount").textContent = readyCount;
+    document.getElementById("gameOverTotalCount").textContent = nonHostPlayers.length;
+
+    // ถ้าเรากดไปแล้ว (หรือ server บอกว่าเรา ready แล้ว) ให้โชว์สถานะรอคนอื่นแทนปุ่ม
+    const meReady = myPlayer ? !!ready[myPlayer.id] : false;
+    if (meReady) {
+        gameOverConfirmed = true;
+    }
+
+    const btn = document.getElementById("gameOverContinueBtn");
+    const waiting = document.getElementById("gameOverWaiting");
+
+    if (gameOverConfirmed) {
+        btn.classList.add("hidden");
+        waiting.classList.remove("hidden");
+        if (gameOverCountdownTimer) {
+            clearInterval(gameOverCountdownTimer);
+            gameOverCountdownTimer = null;
+        }
+        return;
+    }
+
+    btn.classList.remove("hidden");
+    waiting.classList.add("hidden");
+
+    // เริ่มนับถอยหลัง 5 วิ กดอัตโนมัติให้ ถ้ายังไม่เคยเริ่มนับสำหรับรอบนี้
+    if (!gameOverCountdownTimer) {
+        let secondsLeft = 5;
+        document.getElementById("gameOverCountdown").textContent = `(${secondsLeft})`;
+        gameOverCountdownTimer = setInterval(() => {
+            secondsLeft -= 1;
+            if (secondsLeft <= 0) {
+                confirmContinue();
+                return;
+            }
+            const el = document.getElementById("gameOverCountdown");
+            if (el) el.textContent = `(${secondsLeft})`;
+        }, 1000);
+    }
+}
+
+function hideGameOverOverlay() {
+    const overlay = document.getElementById("gameOverOverlay");
+    if (overlay) overlay.classList.add("hidden");
+    if (gameOverCountdownTimer) {
+        clearInterval(gameOverCountdownTimer);
+        gameOverCountdownTimer = null;
+    }
+    gameOverConfirmed = false;
+}
+
+// ปุ่ม "ดำเนินการต่อ" หลังเห็นสรุปผลเกม — ยืนยันว่าพร้อมให้รีบทบาท/ข้อมูลรอบนี้แล้ว
+function confirmContinue() {
+    if (gameOverConfirmed) return;
+    gameOverConfirmed = true;
+
+    if (gameOverCountdownTimer) {
+        clearInterval(gameOverCountdownTimer);
+        gameOverCountdownTimer = null;
+    }
+
+    document.getElementById("gameOverContinueBtn").classList.add("hidden");
+    document.getElementById("gameOverWaiting").classList.remove("hidden");
+
+    socket.emit("confirm_continue", { roomId: currentRoomId });
+}
+
+// DISCONNECT — แสดงแบนเนอร์เตือนแทน alert (alert จะรบกวนมากถ้าเน็ตสะดุดแค่แป๊บเดียว
+// เพราะ socket.io จะพยายามเชื่อมต่อใหม่ให้อัตโนมัติอยู่แล้ว)
+socket.on(
+    "disconnect",
+    () => {
+
+    if (joined) {
+        document.getElementById("connBanner").classList.remove("hidden");
+    }
+
+});
+
+// CONNECT — เรียกทั้งตอนเชื่อมต่อครั้งแรก และทุกครั้งที่ socket.io เชื่อมต่อใหม่สำเร็จ
+// (เช่น เน็ตสะดุด/มือถือล็อกสกรีน/สลับแอปกลับมา) ถ้าตอนหลุดเรา "join" ห้องอยู่
+// ให้ส่ง token เดิมไป join_room ซ้ำทันที เพื่อให้เซิร์ฟเวอร์รู้ว่าเป็นคนเดิม
+// แล้วส่งกริดผู้เล่น/บทบาทกลับมาให้ใหม่ ไม่ต้องกดเข้าร่วมห้องเองอีกรอบ
+socket.on("connect", () => {
+
+    document.getElementById("connBanner").classList.add("hidden");
+
+    if (joined && currentRoomId) {
+
+        socket.emit(
+            "join_room",
+            {
+                roomId: currentRoomId,
+                name: ww_store.getItem("ww_playerName") || "",
+                token: clientToken
+            },
+            (res) => {
+                if (res && res.error) {
+                    // ห้องถูกปิดไปแล้วระหว่างที่เราหลุดการเชื่อมต่อ (เช่น โฮสต์รี/ปิดห้อง
+                    // ขณะเราสลับแท็บ/ล็อกสกรีนอยู่) ต้องรีเซ็ต UI กลับไปหน้ากรอกห้อง/ชื่อ
+                    // ด้วย ไม่ใช่แค่เคลียร์ตัวแปร ไม่งั้นจะค้างอยู่หน้าเกม
+                    resetToJoinScreen("ห้องถูกปิดไปแล้ว หรือไม่พบห้อง");
+                }
+                // ถ้าสำเร็จ: room_update / your_role จะตามมาทาง event ปกติ
+                // ทำให้กริดผู้เล่นและบทบาทกลับมาแสดงผลถูกต้องโดยอัตโนมัติ
+            }
+        );
+
+    }
+
+});
+
+// VISIBILITY CHANGE — เมื่อสลับกลับมาที่แท็บ/หน้าจอนี้ (สลับแอป/ปลดล็อกสกรีน)
+// บางครั้ง browser มือถือจะ throttle จนกระบวนการ reconnect ของ socket.io เองทำงานช้า
+// หรือไม่ทำงานจนกว่าจะมี interaction บังคับให้เช็ค-ต่อใหม่ทันทีเมื่อกลับมาเห็นจอ
+// แทนที่จะรอ backoff ของ socket.io เพียงอย่างเดียว
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !socket.connected) {
+        socket.connect();
+    }
+    // ถ้าสลับออกไประหว่างอนิเมชั่นเปิดเผยบทกำลังเล่นอยู่ ให้ปิด overlay ทิ้งไปเลยทันที
+    // ไม่งั้น setTimeout ของอนิเมชั่นที่เหลือจะถูก throttle ค้างกลางทาง ทำให้กลับมาเจอจอ
+    // ค้างบังอยู่ (ข้อมูลบทจริงถูกตั้งไว้แล้วตั้งแต่ตอนได้รับ your_role อยู่แล้ว ไม่กระทบ)
+    if (document.visibilityState === "hidden") {
+        const overlay = document.getElementById("roleRevealOverlay");
+        if (overlay && !overlay.classList.contains("hidden")) {
+            overlay.classList.add("hidden");
+        }
+    }
+});
+// และกรณีที่ join_room ตอน reconnect ถูกปฏิเสธ (ห้องถูกปิด/ไม่พบห้อง)
+// เพื่อไม่ให้ผู้เล่นค้างอยู่หน้าเกมทั้งที่ไม่ได้อยู่ในห้องแล้ว
+function resetToJoinScreen(message) {
+
+    if (message) wwAlert(message);
+
+    joined = false;
+    currentRoomId = null;
+    myRole = "";
+    myHuntTargetId = null;
+    shieldModeActive = false;
+    ww_store.removeItem("ww_joinedRoom");
+
+    // reset UI กลับสู่หน้าเริ่ม
+    document.querySelector('.app').classList.remove("game-visible");
+    document.querySelector('.app').classList.remove("game-started");
+    document.getElementById("joinCard").classList.remove("hidden");
+    document.getElementById("playersCard").classList.add("hidden");
+    document.getElementById("chatCard").classList.add("hidden");
+    document.getElementById("bottomBar").classList.add("hidden");
+    document.getElementById("bottomBar").classList.remove("bar-visible");
+    document.getElementById("barRoleName").textContent = "ยังไม่ได้รับบท";
+    document.getElementById("barRoleSub").textContent = "แตะหน้ากากเพื่อดูรายละเอียด";
+    document.getElementById("barHuntBadge").classList.add("hidden");
+    document.getElementById("shieldBtn").classList.add("hidden");
+    document.getElementById("shieldBtn").classList.remove("active");
+    document.getElementById("popupRoleName").textContent = "—";
+    document.getElementById("popupRealRole").classList.add("hidden");
+    document.getElementById("popupHuntInfo").classList.add("hidden");
+    document.getElementById("popupRoleDesc").innerHTML = "";
+    document.getElementById("popupRolesInGame").innerHTML = "";
+    document.getElementById("selectInfo").innerHTML = "";
+    document.getElementById("players").innerHTML = "";
+    document.getElementById("players").classList.remove("mode-active");
+    document.getElementById("chatBoxGlobal").innerHTML = "";
+    document.getElementById("chatBoxWolf").innerHTML = "";
+    document.getElementById("modeBanner").classList.add("hidden");
+    document.body.classList.remove("vote-open");
+    document.getElementById("room").value = "";
+    closeRolePopup();
+    renderRoomSuggestion();
+
+}
+
+// ROOM CLOSED (โฮสต์หลุด/รีห้อง)
+socket.on("room_closed", () => {
+
+    if (!joined) return;
+
+    resetToJoinScreen("ห้องถูกปิด เนื่องจากผู้สร้างห้องออกจากเกม");
+
+});
+
+// SEND CHAT
+function sendChat() {
+
+    // ถ้าโดนใบ้ ห้ามส่งแชท
+    if (mySilenced) return;
+
+    // ช่วงกลางคืน: แชทรวมส่งไม่ได้ (แต่พิมพ์ไว้ได้)
+    if (isNight && currentChatTab === "global") return;
+
+    const input =
+        document.getElementById(
+            "chatInput"
+        );
+
+    const text =
+        input.value.trim();
+
+    if (!text) return;
+    if (!currentRoomId) return;
+
+    const type = currentChatTab;
+
+    socket.emit("send_chat", { roomId: currentRoomId, text, type });
+
+    input.value = "";
+
+}
+
+// RENDER ONE CHAT MESSAGE
+function renderChatMessage(msg) {
+
+    // กรองแชทหมาป่าเหมือนเดิม
+    if (
+        msg.type === "wolf" &&
+        !allWolfRoles.includes(myRole) &&
+        !msg.isHost
+    ) return;
+
+    const chatBox =
+        msg.type === "wolf"
+        ? document.getElementById("chatBoxWolf")
+        : document.getElementById("chatBoxGlobal");
+
+    const div =
+        document.createElement("div");
+
+    let className = "msg msgGlobal";
+
+    if (msg.type === "wolf") {
+        className = "msg msgWolf";
+    }
+
+    if (msg.isHost) {
+        className = "msg msgHost";
+    }
+
+    // ✅ FIX: private ต้อง override ทุกอย่าง
+    if (msg.type === "private") {
+        className = "msg msgPrivate";
+    }
+
+    // ข้อความจากเกม (isSystem) ให้เป็นสีเขียวเสมอ ไม่ว่าจะอยู่แชทไหน
+    if (msg.isSystem) {
+        className += " msgSystem";
+    }
+
+    div.className = className;
+
+    div.innerHTML = `
+        <div class="msgName">
+            ${msg.name}
+        </div>
+
+        <div>
+            ${msg.text}
+        </div>
+
+        <div class="msgType">
+            ${
+                msg.type === "private"
+                ? "🟢 PRIVATE"
+                : msg.type === "wolf"
+                ? "🔴 แชทหมาป่า"
+                : "🔵 แชทรวม"
+            }
+        </div>
+    `;
+
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    // increment unread badge if this tab is not active
+    const tabKey = msg.type === "wolf" ? "wolf" : "global";
+    if (currentChatTab !== tabKey) {
+        playerBadgeCounts[tabKey] = (playerBadgeCounts[tabKey] || 0) + 1;
+        const badgeEl = document.getElementById(tabKey === "wolf" ? "badgeWolf" : "badgeGlobal");
+        badgeEl.textContent = playerBadgeCounts[tabKey];
+        badgeEl.classList.remove("zero");
+    }
+}
+
+// RECEIVE CHAT
+socket.on("chat_message", (msg) => {
+    renderChatMessage(msg);
+});
+
+// RECEIVE WOLF CHAT HISTORY (เมื่อผู้ถูกสาปกลายเป็นหมาป่า)
+socket.on("wolf_chat_history", (messages) => {
+    document.getElementById("chatBoxWolf").innerHTML = "";
+    (messages || []).forEach(renderChatMessage);
+});
+
+socket.on("kicked", () => {
+    // ล้าง token และข้อมูลห้องออก ป้องกัน reconnect กลับเข้ามาใหม่
+    ww_store.removeItem("ww_token");
+    ww_store.removeItem("ww_lastRoom");
+    ww_store.removeItem("ww_joinedRoom");
+
+    // แสดง overlay แจ้งถูกเตะ
+    const overlay = document.createElement("div");
+    overlay.id = "kickedOverlay";
+    overlay.innerHTML = `
+        <div class="kicked-box">
+            <div class="kicked-icon">⛔</div>
+            <div class="kicked-title">คุณถูกเตะออกจากห้อง</div>
+            <div class="kicked-sub">กำลังพากลับไปหน้าหลัก...</div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+        overlay.remove();
+        resetToJoinScreen(); // ใช้ฟังก์ชันกลาง ไม่ต้องซ้ำโค้ด
+    }, 2500);
+});
+
+
+document.addEventListener(
+    "keydown",
+    (e) => {
+
+    if (
+    e.key === "Enter" &&
+    document.activeElement.id === "chatInput"
+)  {
+
+        sendChat();
+
+    }
+
+});
+
+
+
+</script>
+
+</body>
+</html>

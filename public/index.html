@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>Werewolf — Lobby</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Charm:wght@400;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+
+:root{
+    --bg:#0a0d14;
+    --panel:#12172380;
+    --line:rgba(255,255,255,.07);
+    --ink:#dbe0ec;
+    --ink-dim:#8993a8;
+    --moon:#7c5cff;
+    --moon-soft:rgba(124,92,255,.16);
+    --wolf:#ef4444;
+    --wolf-soft:rgba(239,68,68,.14);
+    --r-sm:10px;
+    --r-md:16px;
+    --r-lg:22px;
+}
+
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    -webkit-user-select:none;
+    user-select:none;
+    touch-action:manipulation;
+}
+
+body{
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:
+        radial-gradient(ellipse 700px 420px at 20% -8%, rgba(124,92,255,.18), transparent 60%),
+        radial-gradient(ellipse 600px 420px at 100% 10%, rgba(239,68,68,.12), transparent 55%),
+        var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans Thai","Noto Sans Thai",sans-serif;
+    padding:24px;
+    overflow:hidden;
+}
+
+/* starfield */
+body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background-image:
+        radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.35), transparent 40%),
+        radial-gradient(1px 1px at 78% 8%,  rgba(255,255,255,.25), transparent 40%),
+        radial-gradient(1.5px 1.5px at 60% 32%, rgba(255,255,255,.30), transparent 40%),
+        radial-gradient(1px 1px at 32% 64%, rgba(255,255,255,.20), transparent 40%),
+        radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,.25), transparent 40%),
+        radial-gradient(1.5px 1.5px at 8%  85%, rgba(255,255,255,.18), transparent 40%),
+        radial-gradient(1px 1px at 50% 50%, rgba(255,255,255,.15), transparent 40%),
+        radial-gradient(1px 1px at 25% 40%, rgba(255,255,255,.20), transparent 40%),
+        radial-gradient(1px 1px at 70% 55%, rgba(255,255,255,.18), transparent 40%);
+    opacity:.55;
+    z-index:0;
+}
+
+@keyframes rise{
+    from{ opacity:0; transform:translateY(16px); }
+    to{   opacity:1; transform:translateY(0); }
+}
+
+@media (prefers-reduced-motion:reduce){
+    *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+/* ===== CARD ===== */
+.card{
+    position:relative;
+    z-index:1;
+    width:100%;
+    max-width:420px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    backdrop-filter:blur(14px);
+    border-radius:var(--r-lg);
+    padding:36px 28px 32px;
+    text-align:center;
+    animation:rise .6s ease both;
+}
+
+/* ===== SEAL / TITLE ===== */
+.seal{
+    display:inline-flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    padding:18px 40px;
+    border:1px solid var(--moon-soft);
+    border-radius:999px;
+    background:
+        radial-gradient(ellipse at center, rgba(124,92,255,.14), transparent 70%),
+        var(--panel);
+    margin-bottom:28px;
+    position:relative;
+}
+
+.seal::before{
+    content:"";
+    position:absolute;
+    inset:8px;
+    border:1px dashed rgba(124,92,255,.32);
+    border-radius:999px;
+    pointer-events:none;
+}
+
+.seal-eyebrow{
+    font-family:"JetBrains Mono",monospace;
+    font-size:10px;
+    letter-spacing:.32em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+}
+
+.seal-title{
+    font-family:"Charm","IBM Plex Sans Thai",serif;
+    font-weight:700;
+    font-size:46px;
+    letter-spacing:.06em;
+    color:#fff;
+    text-shadow:0 0 32px rgba(124,92,255,.55);
+    line-height:1.1;
+}
+
+.seal-wolf{
+    font-size:30px;
+    line-height:1;
+    filter:drop-shadow(0 0 10px rgba(239,68,68,.5));
+}
+
+/* ===== SUB ===== */
+.sub{
+    font-size:14px;
+    color:var(--ink-dim);
+    line-height:1.7;
+    margin-bottom:28px;
+}
+
+/* ===== BUTTONS ===== */
+.btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    width:100%;
+    padding:15px 20px;
+    border:none;
+    border-radius:var(--r-md);
+    font-family:"IBM Plex Sans Thai",sans-serif;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    transition:transform .15s, filter .15s, box-shadow .15s;
+    margin-bottom:12px;
+    text-decoration:none;
+    color:#fff;
+}
+
+.btn:last-of-type{
+    margin-bottom:0;
+}
+
+.btn-host{
+    background:linear-gradient(135deg, var(--moon), #5b3df0);
+    box-shadow:0 4px 22px rgba(124,92,255,.32);
+}
+
+.btn-host:hover{
+    transform:translateY(-2px);
+    filter:brightness(1.1);
+    box-shadow:0 6px 28px rgba(124,92,255,.48);
+}
+
+.btn-player{
+    background:#111827;
+    border:1px solid var(--line);
+    color:var(--ink);
+}
+
+.btn-player:hover{
+    background:#1a2236;
+    border-color:rgba(124,92,255,.3);
+    transform:translateY(-2px);
+}
+
+.btn:active{
+    transform:translateY(0);
+}
+
+.btn-icon{
+    font-size:20px;
+    line-height:1;
+}
+
+.btn-tester{
+    background:transparent;
+    border:1px dashed rgba(137,147,168,.35);
+    color:var(--ink-dim);
+    font-size:13px;
+    padding:11px 16px;
+}
+
+.btn-tester:hover{
+    border-color:rgba(20,184,166,.45);
+    color:#5eead4;
+    transform:translateY(-2px);
+}
+
+/* ===== TESTER PASSWORD MODAL ===== */
+.modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(5,7,12,.72);
+    backdrop-filter:blur(4px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+    padding:24px;
+}
+
+.modal-overlay.hidden{
+    display:none;
+}
+
+.modal-box{
+    width:100%;
+    max-width:320px;
+    background:#11162280;
+    border:1px solid var(--line);
+    border-radius:var(--r-lg);
+    padding:26px 22px;
+    text-align:center;
+    animation:rise .25s ease both;
+}
+
+.modal-box h3{
+    font-size:17px;
+    margin-bottom:8px;
+    color:#fff;
+}
+
+.modal-box p{
+    font-size:12.5px;
+    color:var(--ink-dim);
+    margin-bottom:18px;
+    line-height:1.6;
+}
+
+.modal-box input{
+    width:100%;
+    padding:13px 14px;
+    border-radius:var(--r-sm);
+    border:1px solid var(--line);
+    background:#0d111c;
+    color:#fff;
+    font-size:16px;
+    text-align:center;
+    letter-spacing:.14em;
+    margin-bottom:8px;
+    font-family:"JetBrains Mono",monospace;
+}
+
+.modal-box input:focus{
+    outline:none;
+    border-color:rgba(20,184,166,.5);
+}
+
+.modal-error{
+    color:var(--wolf);
+    font-size:12px;
+    min-height:16px;
+    margin-bottom:6px;
+}
+
+.tester-role-pick{
+    display:flex;
+    gap:10px;
+    margin-bottom:16px;
+}
+
+.tester-role-btn{
+    flex:1;
+    padding:11px 8px;
+    border-radius:var(--r-sm);
+    border:1px solid var(--line);
+    background:#0d111c;
+    color:var(--ink-dim);
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:inherit;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    transition:border-color .2s, background .2s, color .2s;
+}
+
+.tester-role-btn .role-icon{
+    font-size:20px;
+}
+
+.tester-role-btn.selected-host{
+    border-color:rgba(124,92,255,.7);
+    background:rgba(124,92,255,.15);
+    color:#c4b5fd;
+}
+
+.tester-role-btn.selected-player{
+    border-color:rgba(20,184,166,.7);
+    background:rgba(20,184,166,.12);
+    color:#5eead4;
+}
+
+.modal-actions{
+    display:flex;
+    gap:10px;
+    margin-top:6px;
+}
+
+.modal-actions button{
+    flex:1;
+    padding:12px;
+    border-radius:var(--r-sm);
+    border:none;
+    font-weight:600;
+    font-size:14px;
+    cursor:pointer;
+    font-family:inherit;
+}
+
+.modal-cancel{
+    background:#1a2236;
+    color:var(--ink-dim);
+}
+
+.modal-confirm{
+    background:linear-gradient(135deg, #14b8a6, #0d9488);
+    color:#fff;
+}
+
+@keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    25%{ transform:translateX(-6px); }
+    75%{ transform:translateX(6px); }
+}
+
+.shake{
+    animation:shake .3s ease;
+}
+
+/* ===== FOOTER ===== */
+.footer{
+    margin-top:24px;
+    font-family:"JetBrains Mono",monospace;
+    font-size:11px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:rgba(137,147,168,.45);
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+    <div class="seal">
+        <span class="seal-wolf">🐺</span>
+        <span class="seal-eyebrow">Night Falls</span>
+        <span class="seal-title">Werewolf</span>
+    </div>
+
+    <p class="sub">
+        ระบบจัดการเกมล่ามนุษย์หมาป่า<br>
+        Host คุมเกม &nbsp;·&nbsp; Player เล่นผ่านมือถือ
+    </p>
+
+    <button class="btn btn-host" onclick="host()">
+        <span class="btn-icon">🎮</span>
+        สร้างห้อง — ควบคุมเกม
+    </button>
+
+    <button class="btn btn-player" onclick="player()">
+        <span class="btn-icon">👤</span>
+        เข้าร่วมห้อง — ผู้เล่น
+    </button>
+
+    <button class="btn btn-tester" onclick="openTesterModal()">
+        <span class="btn-icon">🧪</span>
+        เข้าในฐานะผู้ทดสอบ
+    </button>
+
+    <div class="footer">Trust nobody. Night starts.</div>
+
+</div>
+
+<div class="modal-overlay hidden" id="testerModal">
+    <div class="modal-box" id="testerModalBox">
+        <h3>🧪 โหมดผู้ทดสอบ</h3>
+        <p>
+            สำหรับทดสอบหลายบัญชีผู้เล่นบนเครื่องเดียว<br>
+            (แต่ละแท็บนับเป็นคนละผู้เล่น)<br>
+            กรอกรหัสผ่านเพื่อเข้าใช้งาน
+        </p>
+        <div class="tester-role-pick">
+            <button class="tester-role-btn selected-host" id="rolePickHost" onclick="pickTesterRole('host')">
+                <span class="role-icon">🎮</span>
+                โฮสต์
+            </button>
+            <button class="tester-role-btn" id="rolePickPlayer" onclick="pickTesterRole('player')">
+                <span class="role-icon">👤</span>
+                ผู้เล่น
+            </button>
+        </div>
+        <input
+            type="password"
+            id="testerPass"
+            placeholder="รหัสผ่าน"
+            inputmode="numeric"
+            maxlength="10"
+        >
+        <div class="modal-error" id="testerError"></div>
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="closeTesterModal()">ยกเลิก</button>
+            <button class="modal-confirm" onclick="confirmTester()">เข้าใช้งาน</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function host(){
+    window.location.href = "host.html";
+}
+function player(){
+    window.location.href = "player.html";
+}
+
+// ===== โหมดผู้ทดสอบ =====
+// เปิดได้หลายแท็บบนเครื่องเดียวกัน แต่ละแท็บจะนับเป็นผู้เล่นคนละคน (token แยกต่อแท็บ)
+// ป้องกันแบบหลวมๆด้วยรหัสผ่าน กันคนเปิดมาเจอเฉยๆแล้วกดมั่ว ไม่ใช่ระบบความปลอดภัยจริงจัง
+const TESTER_PASSWORD = "251029";
+let testerRole = "host"; // "host" | "player"
+
+function pickTesterRole(role) {
+    testerRole = role;
+    document.getElementById("rolePickHost").className =
+        "tester-role-btn" + (role === "host" ? " selected-host" : "");
+    document.getElementById("rolePickPlayer").className =
+        "tester-role-btn" + (role === "player" ? " selected-player" : "");
+}
+
+function openTesterModal(){
+    testerRole = "host";
+    document.getElementById("rolePickHost").className = "tester-role-btn selected-host";
+    document.getElementById("rolePickPlayer").className = "tester-role-btn";
+    document.getElementById("testerPass").value = "";
+    document.getElementById("testerError").textContent = "";
+    document.getElementById("testerModal").classList.remove("hidden");
+    setTimeout(() => document.getElementById("testerPass").focus(), 50);
+}
+
+function closeTesterModal(){
+    document.getElementById("testerModal").classList.add("hidden");
+}
+
+function confirmTester(){
+    const val = document.getElementById("testerPass").value.trim();
+
+    if (val === TESTER_PASSWORD) {
+        if (testerRole === "host") {
+            window.location.href = "host.html?tester=1";
+        } else {
+            window.location.href = "player.html?tester=1";
+        }
+        return;
+    }
+
+    document.getElementById("testerError").textContent = "รหัสผ่านไม่ถูกต้อง";
+    const box = document.getElementById("testerModalBox");
+    box.classList.remove("shake");
+    void box.offsetWidth;
+    box.classList.add("shake");
+}
+
+document.getElementById("testerPass").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") confirmTester();
+});
+
+document.getElementById("testerModal").addEventListener("click", (e) => {
+    if (e.target.id === "testerModal") closeTesterModal();
+});
+
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('touchmove', e => {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+</script>
+
+</body>
+</html>
